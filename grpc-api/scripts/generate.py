@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import site
 from pathlib import Path
 
 from grpc_tools import protoc
 
 
 ROOT = Path(__file__).resolve().parents[1]
+INCLUDE_DIRS = [path for path in site.getsitepackages() if Path(path).exists()]
 
 PROTOS = [
     "fulcrum_grpc_api/envoy/type/v3/ratelimit_unit.proto",
+    "fulcrum_grpc_api/envoy/type/v3/http_status.proto",
     "fulcrum_grpc_api/envoy/config/core/v3/base.proto",
+    "fulcrum_grpc_api/envoy/service/auth/v3/attribute_context.proto",
+    "fulcrum_grpc_api/envoy/service/auth/v3/external_auth.proto",
     "fulcrum_grpc_api/envoy/extensions/common/ratelimit/v3/ratelimit.proto",
     "fulcrum_grpc_api/envoy/service/ratelimit/v3/rls.proto",
 ]
@@ -20,6 +25,7 @@ def main() -> int:
         [
             "grpc_tools.protoc",
             f"-I{ROOT}",
+            *(f"-I{path}" for path in INCLUDE_DIRS),
             f"--python_out={ROOT}",
             f"--grpc_python_out={ROOT}",
             *(str(ROOT / proto) for proto in PROTOS),

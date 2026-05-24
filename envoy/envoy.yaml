@@ -54,13 +54,18 @@ static_resources:
                 filename: /etc/envoy/certs/ca.crt
 
     # -------------------------------------------------------------------------
-    # Auth sidecar — ext_authz handler (Rust process on localhost:9191).
+    # Auth sidecar — ext_authz gRPC handler on localhost:9191.
     # Static because it is always local; no discovery needed.
-    # HTTP/1.1 — the Envoy ext_authz HTTP API does not require HTTP/2.
+    # Requires HTTP/2 because the ext_authz API is configured as gRPC.
     # -------------------------------------------------------------------------
     - name: auth_sidecar
       type: STATIC
       connect_timeout: 0.25s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
       load_assignment:
         cluster_name: auth_sidecar
         endpoints:

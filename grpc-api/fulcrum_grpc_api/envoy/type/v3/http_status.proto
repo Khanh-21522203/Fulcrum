@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package envoy.type.v3;
+
+// Minimal HTTP status message needed by Envoy external authorization.
+message HttpStatus {
+  enum Code {
+    Empty = 0;
+    OK = 200;
+    Unauthorized = 401;
+    Forbidden = 403;
+  }
+
+  Code code = 1;
+}

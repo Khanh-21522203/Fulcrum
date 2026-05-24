@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package envoy.service.auth.v3;
+
+import "google/rpc/status.proto";
+import "fulcrum_grpc_api/envoy/config/core/v3/base.proto";
+import "fulcrum_grpc_api/envoy/service/auth/v3/attribute_context.proto";
+import "fulcrum_grpc_api/envoy/type/v3/http_status.proto";
+
+service Authorization {
+  rpc Check(CheckRequest) returns (CheckResponse);
+}
+
+message CheckRequest {
+  AttributeContext attributes = 1;
+}
+
+message DeniedHttpResponse {
+  envoy.type.v3.HttpStatus status = 1;
+  repeated envoy.config.core.v3.HeaderValueOption headers = 2;
+  string body = 3;
+}
+
+message OkHttpResponse {
+  repeated envoy.config.core.v3.HeaderValueOption headers = 2;
+}
+
+message CheckResponse {
+  google.rpc.Status status = 1;
+
+  oneof http_response {
+    DeniedHttpResponse denied_response = 2;
+    OkHttpResponse ok_response = 3;
+  }
+}
