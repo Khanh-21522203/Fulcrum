@@ -18,6 +18,8 @@ listeners:    List[Listener]      # rendered protobuf resources
 routes:       List[RouteConfig]
 clusters:     List[Cluster]
 endpoints:    List[ClusterLoadAssignment]
+secrets:      List[Secret]
+runtime:      List[Runtime]
 updated_at:   datetime
 ```
 
@@ -119,6 +121,8 @@ Each Envoy node opens one persistent stream. It sends `DiscoveryRequest` message
 | RDS | `type.googleapis.com/envoy.config.route.v3.RouteConfiguration` |
 | CDS | `type.googleapis.com/envoy.config.cluster.v3.Cluster` |
 | EDS | `type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment` |
+| SDS | `type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret` |
+| RTDS | `type.googleapis.com/envoy.service.runtime.v3.Runtime` |
 
 ### REST — Internal / Ops
 

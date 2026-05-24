@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package envoy.config.core.v3;
+
+import "google/protobuf/duration.proto";
+
+message GrpcService {
+  message EnvoyGrpc {
+    string cluster_name = 1;
+  }
+
+  oneof target_specifier {
+    EnvoyGrpc envoy_grpc = 1;
+  }
+
+  google.protobuf.Duration timeout = 3;
+}

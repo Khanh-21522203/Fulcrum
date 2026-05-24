@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class InstanceStatus(str, Enum):
@@ -33,7 +37,7 @@ class LastOperation(BaseModel):
     type: LastOperationType
     state: LastOperationState
     description: str = ""
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ServiceInstance(BaseModel):
@@ -44,8 +48,8 @@ class ServiceInstance(BaseModel):
     space_id: str
     parameters: dict[str, Any] = {}
     status: InstanceStatus = InstanceStatus.PENDING
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     last_operation: LastOperation | None = None
 
 
@@ -66,7 +70,7 @@ class ProvisioningTask(BaseModel):
     task_type: TaskType
     payload: dict[str, Any] = {}
     attempt: int = 0
-    enqueued_at: datetime = Field(default_factory=datetime.utcnow)
+    enqueued_at: datetime = Field(default_factory=utc_now)
 
 
 class TaskResult(BaseModel):
@@ -74,4 +78,4 @@ class TaskResult(BaseModel):
     instance_id: uuid.UUID
     status: TaskStatus
     error: str | None = None
-    completed_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime = Field(default_factory=utc_now)

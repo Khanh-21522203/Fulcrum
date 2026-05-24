@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package envoy.config.listener.v3;
+
+import "google/protobuf/any.proto";
+
+message Listener {
+  string name = 1;
+  Address address = 2;
+  repeated FilterChain filter_chains = 3;
+}
+
+message Address {
+  SocketAddress socket_address = 1;
+}
+
+message SocketAddress {
+  string address = 2;
+  uint32 port_value = 3;
+}
+
+message FilterChain {
+  repeated Filter filters = 3;
+}
+
+message Filter {
+  string name = 1;
+  google.protobuf.Any typed_config = 4;
+}

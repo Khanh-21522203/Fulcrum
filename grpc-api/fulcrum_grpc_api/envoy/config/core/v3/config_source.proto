@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package envoy.config.core.v3;
+
+message AggregatedConfigSource {}
+
+message ConfigSource {
+  oneof config_source_specifier {
+    AggregatedConfigSource ads = 3;
+  }
+}

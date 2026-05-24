@@ -71,7 +71,7 @@ class AuthorizationServicerTest(unittest.TestCase):
     def test_grpc_service_returns_check_response(self):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
         external_auth_pb2_grpc.add_AuthorizationServicer_to_server(servicer(), server)
-        port = server.add_insecure_port("[::]:0")
+        port = server.add_insecure_port("127.0.0.1:0")
         server.start()
         self.addCleanup(server.stop, 0)
 

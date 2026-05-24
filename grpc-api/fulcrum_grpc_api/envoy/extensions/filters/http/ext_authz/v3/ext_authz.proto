@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package envoy.extensions.filters.http.ext_authz.v3;
+
+import "fulcrum_grpc_api/envoy/config/core/v3/grpc_service.proto";
+
+message ExtAuthz {
+  oneof services {
+    envoy.config.core.v3.GrpcService grpc_service = 1;
+  }
+
+  bool failure_mode_allow = 2;
+}

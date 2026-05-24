@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package envoy.extensions.filters.network.http_connection_manager.v3;
+
+import "google/protobuf/any.proto";
+import "fulcrum_grpc_api/envoy/config/core/v3/config_source.proto";
+
+message HttpConnectionManager {
+  enum CodecType {
+    AUTO = 0;
+    HTTP1 = 1;
+    HTTP2 = 2;
+    HTTP3 = 3;
+  }
+
+  CodecType codec_type = 1;
+  string stat_prefix = 2;
+  Rds rds = 3;
+  repeated HttpFilter http_filters = 5;
+}
+
+message Rds {
+  envoy.config.core.v3.ConfigSource config_source = 1;
+  string route_config_name = 2;
+}
+
+message HttpFilter {
+  string name = 1;
+  google.protobuf.Any typed_config = 4;
+}

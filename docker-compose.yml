@@ -20,6 +20,10 @@ services:
       - "18000:18000" # gRPC ADS stream (Envoy connects here)
     environment:
       PYTHONUNBUFFERED: "1"
+      FULCRUM_DEV_SEED_INSTANCE: "1"
+      FULCRUM_DEV_NODE_GROUP: "local"
+      FULCRUM_DEV_UPSTREAM_HOST: "control-plane"
+      FULCRUM_DEV_UPSTREAM_PORT: "8080"
     depends_on:
       - azurite
 
@@ -55,7 +59,7 @@ services:
     volumes:
       - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
     ports:
-      - "10443:443"  # inbound HTTPS (Front Door forwards here in prod)
+      - "10080:8080" # inbound HTTP for local development
       - "9901:9901"  # Envoy admin interface (localhost only in prod)
     command: ["envoy", "-c", "/etc/envoy/envoy.yaml"]
     environment:

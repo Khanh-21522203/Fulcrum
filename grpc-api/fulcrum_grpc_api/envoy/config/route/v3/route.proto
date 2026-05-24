@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package envoy.config.route.v3;
+
+import "google/protobuf/duration.proto";
+
+message RouteConfiguration {
+  string name = 1;
+  repeated VirtualHost virtual_hosts = 2;
+}
+
+message VirtualHost {
+  string name = 1;
+  repeated string domains = 2;
+  repeated Route routes = 3;
+}
+
+message Route {
+  RouteMatch match = 1;
+  RouteAction route = 2;
+}
+
+message RouteMatch {
+  string prefix = 1;
+}
+
+message RouteAction {
+  string cluster = 1;
+  google.protobuf.Duration timeout = 8;
+  repeated RateLimit rate_limits = 13;
+}
+
+message RateLimit {
+  message Action {
+    message GenericKey {
+      string descriptor_value = 1;
+      string descriptor_key = 2;
+      string default_value = 3;
+    }
+
+    oneof action_specifier {
+      GenericKey generic_key = 5;
+    }
+  }
+
+  repeated Action actions = 3;
+}

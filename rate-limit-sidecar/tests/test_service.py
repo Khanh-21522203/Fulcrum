@@ -140,7 +140,7 @@ class RateLimitServicerTest(unittest.TestCase):
         clock = FakeClock()
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
         rls_pb2_grpc.add_RateLimitServiceServicer_to_server(service(clock), server)
-        port = server.add_insecure_port("[::]:0")
+        port = server.add_insecure_port("127.0.0.1:0")
         server.start()
         self.addCleanup(server.stop, 0)
 

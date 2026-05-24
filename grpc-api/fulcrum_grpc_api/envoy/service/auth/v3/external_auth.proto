@@ -29,8 +29,21 @@ message HttpStatus {
 }
 
 message AttributeContext {
+  message Address {
+    message SocketAddress {
+      string address = 2;
+      uint32 port_value = 3;
+    }
+
+    SocketAddress socket_address = 1;
+  }
+
   message Peer {
-    string principal = 1;
+    Address address = 1;
+    string service = 2;
+    map<string, string> labels = 3;
+    string principal = 4;
+    string certificate = 5;
   }
 
   message Request {

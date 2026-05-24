@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package envoy.extensions.filters.http.ratelimit.v3;
+
+import "google/protobuf/duration.proto";
+import "fulcrum_grpc_api/envoy/config/ratelimit/v3/rls.proto";
+
+message RateLimit {
+  string domain = 1;
+  google.protobuf.Duration timeout = 4;
+  bool failure_mode_deny = 5;
+  envoy.config.ratelimit.v3.RateLimitServiceConfig rate_limit_service = 7;
+}

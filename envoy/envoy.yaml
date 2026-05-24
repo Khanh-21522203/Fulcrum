@@ -3,16 +3,12 @@
 # This file is static. All routing, cluster, and listener configuration
 # is delivered dynamically by the control plane via the ADS gRPC stream.
 #
-# Environment variables resolved at startup (written by the VM boot script
-# after fetching from Azure Key Vault):
-#   NODE_GROUP        — logical node group, e.g. "region-eastus"
-#                       must match a NodeGroup.id in the control plane
-#   HOSTNAME          — unique per VM instance (use system hostname)
-#   CONTROL_PLANE_HOST — control plane DNS name or IP
+# Local Docker Compose bootstrap. Production should render the node identity,
+# control-plane address, and transport socket settings from the VM boot script.
 
 node:
-  cluster: "${NODE_GROUP}"
-  id: "${HOSTNAME}"
+  cluster: local
+  id: envoy-local-1
 
 static_resources:
   clusters:
@@ -20,7 +16,8 @@ static_resources:
     # -------------------------------------------------------------------------
     # Control plane cluster — used to bootstrap the ADS gRPC stream.
     # Must be static: cannot use ADS to discover the ADS server itself.
-    # mTLS certs are written to /etc/envoy/certs/ by the boot script.
+    # Local development uses insecure gRPC. Production should replace this
+    # with mTLS certs written to /etc/envoy/certs/ by the boot script.
     # -------------------------------------------------------------------------
     - name: control_plane
       type: STRICT_DNS
@@ -37,29 +34,17 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: "${CONTROL_PLANE_HOST}"
+                      address: control-plane
                       port_value: 18000
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          common_tls_context:
-            tls_certificates:
-              - certificate_chain:
-                  filename: /etc/envoy/certs/client.crt
-                certificate_key:
-                  filename: /etc/envoy/certs/client.key
-            validation_context:
-              trusted_ca:
-                filename: /etc/envoy/certs/ca.crt
 
     # -------------------------------------------------------------------------
-    # Auth sidecar — ext_authz gRPC handler on localhost:9191.
-    # Static because it is always local; no discovery needed.
+    # Auth sidecar — ext_authz gRPC handler.
+    # Local Compose uses the service DNS name. Production sidecars can use
+    # localhost because they run on the same VM as Envoy.
     # Requires HTTP/2 because the ext_authz API is configured as gRPC.
     # -------------------------------------------------------------------------
     - name: auth_sidecar
-      type: STATIC
+      type: STRICT_DNS
       connect_timeout: 0.25s
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
@@ -73,16 +58,17 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: 127.0.0.1
+                      address: auth-sidecar
                       port_value: 9191
 
     # -------------------------------------------------------------------------
-    # Rate limit sidecar — implements envoy.service.ratelimit.v3 (Go, gRPC).
-    # Static for the same reason as auth_sidecar.
+    # Rate limit sidecar — implements envoy.service.ratelimit.v3.
+    # Local Compose uses the service DNS name. Production sidecars can use
+    # localhost because they run on the same VM as Envoy.
     # Requires HTTP/2 because the rate limit API is gRPC-only.
     # -------------------------------------------------------------------------
     - name: ratelimit_sidecar
-      type: STATIC
+      type: STRICT_DNS
       connect_timeout: 0.25s
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
@@ -96,11 +82,11 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: 127.0.0.1
+                      address: rate-limit-sidecar
                       port_value: 8081
 
 dynamic_resources:
-  # All four xDS resource types (LDS, RDS, CDS, EDS) flow through a single
+  # Fulcrum's xDS resource types (LDS, RDS, CDS, EDS, SDS, RTDS) flow through a single
   # ADS stream to the control plane. This guarantees ordering — Envoy will not
   # activate a listener that references a cluster it has not yet received.
   ads_config:
@@ -121,7 +107,7 @@ admin:
   # Bound to localhost only — never expose the admin API on a public interface.
   address:
     socket_address:
-      address: 127.0.0.1
+      address: 0.0.0.0
       port_value: 9901
   access_log:
     - name: envoy.access_loggers.file

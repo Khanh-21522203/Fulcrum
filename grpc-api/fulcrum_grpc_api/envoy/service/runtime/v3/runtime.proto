@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package envoy.service.runtime.v3;
+
+import "google/protobuf/struct.proto";
+
+message Runtime {
+  string name = 1;
+  google.protobuf.Struct layer = 2;
+}
