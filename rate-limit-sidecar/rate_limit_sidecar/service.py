@@ -4,33 +4,44 @@ import os
 import threading
 import time
 from dataclasses import dataclass
+from enum import IntEnum
 from math import ceil
 from typing import Callable
 
 from google.protobuf.duration_pb2 import Duration
 
 from fulcrum_grpc_api.envoy.service.ratelimit.v3 import rls_pb2, rls_pb2_grpc
-from fulcrum_grpc_api.envoy.type.v3 import ratelimit_unit_pb2
+
+
+class RateLimitUnit(IntEnum):
+    UNKNOWN = 0
+    SECOND = 1
+    MINUTE = 2
+    HOUR = 3
+    DAY = 4
+    WEEK = 5
+    MONTH = 6
+    YEAR = 7
 
 
 SECONDS_BY_UNIT = {
-    ratelimit_unit_pb2.SECOND: 1,
-    ratelimit_unit_pb2.MINUTE: 60,
-    ratelimit_unit_pb2.HOUR: 60 * 60,
-    ratelimit_unit_pb2.DAY: 24 * 60 * 60,
-    ratelimit_unit_pb2.WEEK: 7 * 24 * 60 * 60,
-    ratelimit_unit_pb2.MONTH: 30 * 24 * 60 * 60,
-    ratelimit_unit_pb2.YEAR: 365 * 24 * 60 * 60,
+    RateLimitUnit.SECOND: 1,
+    RateLimitUnit.MINUTE: 60,
+    RateLimitUnit.HOUR: 60 * 60,
+    RateLimitUnit.DAY: 24 * 60 * 60,
+    RateLimitUnit.WEEK: 7 * 24 * 60 * 60,
+    RateLimitUnit.MONTH: 30 * 24 * 60 * 60,
+    RateLimitUnit.YEAR: 365 * 24 * 60 * 60,
 }
 
 RLS_UNIT_BY_LIMIT_UNIT = {
-    ratelimit_unit_pb2.SECOND: rls_pb2.RateLimitResponse.RateLimit.SECOND,
-    ratelimit_unit_pb2.MINUTE: rls_pb2.RateLimitResponse.RateLimit.MINUTE,
-    ratelimit_unit_pb2.HOUR: rls_pb2.RateLimitResponse.RateLimit.HOUR,
-    ratelimit_unit_pb2.DAY: rls_pb2.RateLimitResponse.RateLimit.DAY,
-    ratelimit_unit_pb2.WEEK: rls_pb2.RateLimitResponse.RateLimit.WEEK,
-    ratelimit_unit_pb2.MONTH: rls_pb2.RateLimitResponse.RateLimit.MONTH,
-    ratelimit_unit_pb2.YEAR: rls_pb2.RateLimitResponse.RateLimit.YEAR,
+    RateLimitUnit.SECOND: int(RateLimitUnit.SECOND),
+    RateLimitUnit.MINUTE: int(RateLimitUnit.MINUTE),
+    RateLimitUnit.HOUR: int(RateLimitUnit.HOUR),
+    RateLimitUnit.DAY: int(RateLimitUnit.DAY),
+    RateLimitUnit.WEEK: int(RateLimitUnit.WEEK),
+    RateLimitUnit.MONTH: int(RateLimitUnit.MONTH),
+    RateLimitUnit.YEAR: int(RateLimitUnit.YEAR),
 }
 
 
@@ -68,7 +79,7 @@ class TokenBucketRateLimiter:
         now = self._clock()
         unit_seconds = SECONDS_BY_UNIT.get(
             limit.unit,
-            SECONDS_BY_UNIT[ratelimit_unit_pb2.MINUTE],
+            SECONDS_BY_UNIT[RateLimitUnit.MINUTE],
         )
         capacity = float(max(limit.requests_per_unit, 1))
         refill_per_second = capacity / unit_seconds
@@ -99,7 +110,7 @@ class TokenBucketRateLimiter:
 def default_limit_from_env() -> Limit:
     requests_per_unit = int(os.getenv("FULCRUM_RATE_LIMIT_REQUESTS_PER_UNIT", "100"))
     unit_name = os.getenv("FULCRUM_RATE_LIMIT_UNIT", "MINUTE").upper()
-    unit = getattr(ratelimit_unit_pb2, unit_name, ratelimit_unit_pb2.MINUTE)
+    unit = int(getattr(RateLimitUnit, unit_name, RateLimitUnit.MINUTE))
     return Limit("default", requests_per_unit, unit)
 
 

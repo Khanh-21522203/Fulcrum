@@ -4,11 +4,14 @@ from concurrent import futures
 import grpc
 from google.protobuf.wrappers_pb2 import UInt64Value
 
-from fulcrum_grpc_api.envoy.extensions.common.ratelimit.v3 import ratelimit_pb2
 from fulcrum_grpc_api.envoy.service.ratelimit.v3 import rls_pb2
 from fulcrum_grpc_api.envoy.service.ratelimit.v3 import rls_pb2_grpc
-from fulcrum_grpc_api.envoy.type.v3 import ratelimit_unit_pb2
-from rate_limit_sidecar.service import Limit, RateLimitServicer, TokenBucketRateLimiter
+from rate_limit_sidecar.service import (
+    Limit,
+    RateLimitServicer,
+    RateLimitUnit,
+    TokenBucketRateLimiter,
+)
 
 
 class FakeClock:
@@ -23,9 +26,9 @@ class FakeClock:
 
 
 def descriptor(*entries, limit=None, hits=None, is_negative_hits=False):
-    message = ratelimit_pb2.RateLimitDescriptor(
+    message = rls_pb2.RateLimitDescriptor(
         entries=[
-            ratelimit_pb2.RateLimitDescriptor.Entry(key=key, value=value)
+            rls_pb2.RateLimitDescriptor.Entry(key=key, value=value)
             for key, value in entries
         ],
         is_negative_hits=is_negative_hits,
@@ -51,7 +54,7 @@ def service(clock, default_limit=None):
     return RateLimitServicer(
         limiter=TokenBucketRateLimiter(clock=clock),
         default_limit=default_limit
-        or Limit("default", 2, ratelimit_unit_pb2.MINUTE),
+        or Limit("default", 2, RateLimitUnit.MINUTE),
     )
 
 
@@ -87,12 +90,12 @@ class RateLimitServicerTest(unittest.TestCase):
         clock = FakeClock()
         servicer = service(
             clock,
-            default_limit=Limit("default", 100, ratelimit_unit_pb2.MINUTE),
+            default_limit=Limit("default", 100, RateLimitUnit.MINUTE),
         )
         check = request(
             descriptor(
                 ("service_id", "broker"),
-                limit=(1, ratelimit_unit_pb2.MINUTE),
+                limit=(1, RateLimitUnit.MINUTE),
             )
         )
 
@@ -107,7 +110,7 @@ class RateLimitServicerTest(unittest.TestCase):
         clock = FakeClock()
         servicer = service(
             clock,
-            default_limit=Limit("default", 3, ratelimit_unit_pb2.MINUTE),
+            default_limit=Limit("default", 3, RateLimitUnit.MINUTE),
         )
         check = request(descriptor(("service_id", "broker"), hits=2))
 

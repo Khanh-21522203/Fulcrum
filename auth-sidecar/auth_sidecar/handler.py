@@ -5,10 +5,8 @@ from dataclasses import dataclass, field
 
 from google.rpc import status_pb2
 
-from fulcrum_grpc_api.envoy.config.core.v3 import base_pb2
 from fulcrum_grpc_api.envoy.service.auth.v3 import external_auth_pb2
 from fulcrum_grpc_api.envoy.service.auth.v3 import external_auth_pb2_grpc
-from fulcrum_grpc_api.envoy.type.v3 import http_status_pb2
 
 
 OK = 0
@@ -140,7 +138,7 @@ class AuthorizationServicer(external_auth_pb2_grpc.AuthorizationServicer):
         return external_auth_pb2.CheckResponse(
             status=status_pb2.Status(code=decision.grpc_code, message=decision.reason),
             denied_response=external_auth_pb2.DeniedHttpResponse(
-                status=http_status_pb2.HttpStatus(
+                status=external_auth_pb2.HttpStatus(
                     code=self._http_status_code(decision.status_code)
                 ),
                 headers=[
@@ -151,13 +149,13 @@ class AuthorizationServicer(external_auth_pb2_grpc.AuthorizationServicer):
         )
 
     def _header_option(self, key: str, value: str):
-        return base_pb2.HeaderValueOption(
-            header=base_pb2.HeaderValue(key=key, value=value)
+        return external_auth_pb2.HeaderValueOption(
+            header=external_auth_pb2.HeaderValue(key=key, value=value)
         )
 
     def _http_status_code(self, status_code: int):
         if status_code == 403:
-            return http_status_pb2.HttpStatus.Forbidden
+            return external_auth_pb2.HttpStatus.Forbidden
         if status_code == 401:
-            return http_status_pb2.HttpStatus.Unauthorized
-        return http_status_pb2.HttpStatus.Forbidden
+            return external_auth_pb2.HttpStatus.Unauthorized
+        return external_auth_pb2.HttpStatus.Forbidden

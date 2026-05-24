@@ -23,26 +23,43 @@ _sym_db = _symbol_database.Default()
 
 
 from google.rpc import status_pb2 as google_dot_rpc_dot_status__pb2
-from fulcrum_grpc_api.envoy.config.core.v3 import base_pb2 as fulcrum__grpc__api_dot_envoy_dot_config_dot_core_dot_v3_dot_base__pb2
-from fulcrum_grpc_api.envoy.service.auth.v3 import attribute_context_pb2 as fulcrum__grpc__api_dot_envoy_dot_service_dot_auth_dot_v3_dot_attribute__context__pb2
-from fulcrum_grpc_api.envoy.type.v3 import http_status_pb2 as fulcrum__grpc__api_dot_envoy_dot_type_dot_v3_dot_http__status__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n:fulcrum_grpc_api/envoy/service/auth/v3/external_auth.proto\x12\x15\x65nvoy.service.auth.v3\x1a\x17google/rpc/status.proto\x1a\x30\x66ulcrum_grpc_api/envoy/config/core/v3/base.proto\x1a>fulcrum_grpc_api/envoy/service/auth/v3/attribute_context.proto\x1a\x30\x66ulcrum_grpc_api/envoy/type/v3/http_status.proto\"K\n\x0c\x43heckRequest\x12;\n\nattributes\x18\x01 \x01(\x0b\x32\'.envoy.service.auth.v3.AttributeContext\"\x87\x01\n\x12\x44\x65niedHttpResponse\x12)\n\x06status\x18\x01 \x01(\x0b\x32\x19.envoy.type.v3.HttpStatus\x12\x38\n\x07headers\x18\x02 \x03(\x0b\x32\'.envoy.config.core.v3.HeaderValueOption\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t\"J\n\x0eOkHttpResponse\x12\x38\n\x07headers\x18\x02 \x03(\x0b\x32\'.envoy.config.core.v3.HeaderValueOption\"\xc8\x01\n\rCheckResponse\x12\"\n\x06status\x18\x01 \x01(\x0b\x32\x12.google.rpc.Status\x12\x44\n\x0f\x64\x65nied_response\x18\x02 \x01(\x0b\x32).envoy.service.auth.v3.DeniedHttpResponseH\x00\x12<\n\x0bok_response\x18\x03 \x01(\x0b\x32%.envoy.service.auth.v3.OkHttpResponseH\x00\x42\x0f\n\rhttp_response2c\n\rAuthorization\x12R\n\x05\x43heck\x12#.envoy.service.auth.v3.CheckRequest\x1a$.envoy.service.auth.v3.CheckResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n:fulcrum_grpc_api/envoy/service/auth/v3/external_auth.proto\x12\x15\x65nvoy.service.auth.v3\x1a\x17google/rpc/status.proto\")\n\x0bHeaderValue\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\"G\n\x11HeaderValueOption\x12\x32\n\x06header\x18\x01 \x01(\x0b\x32\".envoy.service.auth.v3.HeaderValue\"\x81\x01\n\nHttpStatus\x12\x34\n\x04\x63ode\x18\x01 \x01(\x0e\x32&.envoy.service.auth.v3.HttpStatus.Code\"=\n\x04\x43ode\x12\t\n\x05\x45mpty\x10\x00\x12\x07\n\x02OK\x10\xc8\x01\x12\x11\n\x0cUnauthorized\x10\x91\x03\x12\x0e\n\tForbidden\x10\x93\x03\"\x8b\x05\n\x10\x41ttributeContext\x12<\n\x06source\x18\x01 \x01(\x0b\x32,.envoy.service.auth.v3.AttributeContext.Peer\x12\x41\n\x0b\x64\x65stination\x18\x02 \x01(\x0b\x32,.envoy.service.auth.v3.AttributeContext.Peer\x12@\n\x07request\x18\x04 \x01(\x0b\x32/.envoy.service.auth.v3.AttributeContext.Request\x1a\x19\n\x04Peer\x12\x11\n\tprincipal\x18\x01 \x01(\t\x1a\x98\x03\n\x07Request\x12I\n\x04http\x18\x02 \x01(\x0b\x32;.envoy.service.auth.v3.AttributeContext.Request.HttpRequest\x1a\xc1\x02\n\x0bHttpRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06method\x18\x02 \x01(\t\x12Y\n\x07headers\x18\x03 \x03(\x0b\x32H.envoy.service.auth.v3.AttributeContext.Request.HttpRequest.HeadersEntry\x12\x0c\n\x04path\x18\x04 \x01(\t\x12\x0c\n\x04host\x18\x05 \x01(\t\x12\x0e\n\x06scheme\x18\x06 \x01(\t\x12\r\n\x05query\x18\x07 \x01(\t\x12\x10\n\x08\x66ragment\x18\x08 \x01(\t\x12\x0c\n\x04size\x18\t \x01(\x03\x12\x10\n\x08protocol\x18\n \x01(\t\x12\x0c\n\x04\x62ody\x18\x0b \x01(\t\x12\x10\n\x08raw_body\x18\x0c \x01(\x0c\x1a.\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"K\n\x0c\x43heckRequest\x12;\n\nattributes\x18\x01 \x01(\x0b\x32\'.envoy.service.auth.v3.AttributeContext\"\x90\x01\n\x12\x44\x65niedHttpResponse\x12\x31\n\x06status\x18\x01 \x01(\x0b\x32!.envoy.service.auth.v3.HttpStatus\x12\x39\n\x07headers\x18\x02 \x03(\x0b\x32(.envoy.service.auth.v3.HeaderValueOption\x12\x0c\n\x04\x62ody\x18\x03 \x01(\t\"K\n\x0eOkHttpResponse\x12\x39\n\x07headers\x18\x02 \x03(\x0b\x32(.envoy.service.auth.v3.HeaderValueOption\"\xc8\x01\n\rCheckResponse\x12\"\n\x06status\x18\x01 \x01(\x0b\x32\x12.google.rpc.Status\x12\x44\n\x0f\x64\x65nied_response\x18\x02 \x01(\x0b\x32).envoy.service.auth.v3.DeniedHttpResponseH\x00\x12<\n\x0bok_response\x18\x03 \x01(\x0b\x32%.envoy.service.auth.v3.OkHttpResponseH\x00\x42\x0f\n\rhttp_response2c\n\rAuthorization\x12R\n\x05\x43heck\x12#.envoy.service.auth.v3.CheckRequest\x1a$.envoy.service.auth.v3.CheckResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'fulcrum_grpc_api.envoy.service.auth.v3.external_auth_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_CHECKREQUEST']._serialized_start=274
-  _globals['_CHECKREQUEST']._serialized_end=349
-  _globals['_DENIEDHTTPRESPONSE']._serialized_start=352
-  _globals['_DENIEDHTTPRESPONSE']._serialized_end=487
-  _globals['_OKHTTPRESPONSE']._serialized_start=489
-  _globals['_OKHTTPRESPONSE']._serialized_end=563
-  _globals['_CHECKRESPONSE']._serialized_start=566
-  _globals['_CHECKRESPONSE']._serialized_end=766
-  _globals['_AUTHORIZATION']._serialized_start=768
-  _globals['_AUTHORIZATION']._serialized_end=867
+  _globals['_ATTRIBUTECONTEXT_REQUEST_HTTPREQUEST_HEADERSENTRY']._loaded_options = None
+  _globals['_ATTRIBUTECONTEXT_REQUEST_HTTPREQUEST_HEADERSENTRY']._serialized_options = b'8\001'
+  _globals['_HEADERVALUE']._serialized_start=110
+  _globals['_HEADERVALUE']._serialized_end=151
+  _globals['_HEADERVALUEOPTION']._serialized_start=153
+  _globals['_HEADERVALUEOPTION']._serialized_end=224
+  _globals['_HTTPSTATUS']._serialized_start=227
+  _globals['_HTTPSTATUS']._serialized_end=356
+  _globals['_HTTPSTATUS_CODE']._serialized_start=295
+  _globals['_HTTPSTATUS_CODE']._serialized_end=356
+  _globals['_ATTRIBUTECONTEXT']._serialized_start=359
+  _globals['_ATTRIBUTECONTEXT']._serialized_end=1010
+  _globals['_ATTRIBUTECONTEXT_PEER']._serialized_start=574
+  _globals['_ATTRIBUTECONTEXT_PEER']._serialized_end=599
+  _globals['_ATTRIBUTECONTEXT_REQUEST']._serialized_start=602
+  _globals['_ATTRIBUTECONTEXT_REQUEST']._serialized_end=1010
+  _globals['_ATTRIBUTECONTEXT_REQUEST_HTTPREQUEST']._serialized_start=689
+  _globals['_ATTRIBUTECONTEXT_REQUEST_HTTPREQUEST']._serialized_end=1010
+  _globals['_ATTRIBUTECONTEXT_REQUEST_HTTPREQUEST_HEADERSENTRY']._serialized_start=964
+  _globals['_ATTRIBUTECONTEXT_REQUEST_HTTPREQUEST_HEADERSENTRY']._serialized_end=1010
+  _globals['_CHECKREQUEST']._serialized_start=1012
+  _globals['_CHECKREQUEST']._serialized_end=1087
+  _globals['_DENIEDHTTPRESPONSE']._serialized_start=1090
+  _globals['_DENIEDHTTPRESPONSE']._serialized_end=1234
+  _globals['_OKHTTPRESPONSE']._serialized_start=1236
+  _globals['_OKHTTPRESPONSE']._serialized_end=1311
+  _globals['_CHECKRESPONSE']._serialized_start=1314
+  _globals['_CHECKRESPONSE']._serialized_end=1514
+  _globals['_AUTHORIZATION']._serialized_start=1516
+  _globals['_AUTHORIZATION']._serialized_end=1615
 # @@protoc_insertion_point(module_scope)

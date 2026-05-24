@@ -6,7 +6,6 @@ import grpc
 from auth_sidecar.handler import AuthorizationServicer, StaticBearerTokenAuthorizer
 from fulcrum_grpc_api.envoy.service.auth.v3 import external_auth_pb2
 from fulcrum_grpc_api.envoy.service.auth.v3 import external_auth_pb2_grpc
-from fulcrum_grpc_api.envoy.type.v3 import http_status_pb2
 
 
 def check_request(authorization: str | None = None):
@@ -52,7 +51,7 @@ class AuthorizationServicerTest(unittest.TestCase):
         self.assertEqual(response.status.code, 16)
         self.assertEqual(
             response.denied_response.status.code,
-            http_status_pb2.HttpStatus.Unauthorized,
+            external_auth_pb2.HttpStatus.Unauthorized,
         )
         self.assertEqual(response.denied_response.body, '{"error":"missing_authorization"}')
 
@@ -65,7 +64,7 @@ class AuthorizationServicerTest(unittest.TestCase):
         self.assertEqual(response.status.code, 16)
         self.assertEqual(
             response.denied_response.status.code,
-            http_status_pb2.HttpStatus.Unauthorized,
+            external_auth_pb2.HttpStatus.Unauthorized,
         )
         self.assertEqual(response.denied_response.body, '{"error":"invalid_token"}')
 

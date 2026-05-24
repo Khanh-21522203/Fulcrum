@@ -4,16 +4,48 @@ package envoy.service.ratelimit.v3;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
-import "fulcrum_grpc_api/envoy/config/core/v3/base.proto";
-import "fulcrum_grpc_api/envoy/extensions/common/ratelimit/v3/ratelimit.proto";
+import "google/protobuf/wrappers.proto";
 
 service RateLimitService {
   rpc ShouldRateLimit(RateLimitRequest) returns (RateLimitResponse);
 }
 
+enum RateLimitUnit {
+  UNKNOWN_UNIT = 0;
+  SECOND = 1;
+  MINUTE = 2;
+  HOUR = 3;
+  DAY = 4;
+  WEEK = 5;
+  MONTH = 6;
+  YEAR = 7;
+}
+
+message HeaderValue {
+  string key = 1;
+  string value = 2;
+}
+
+message RateLimitDescriptor {
+  message Entry {
+    string key = 1;
+    string value = 2;
+  }
+
+  message RateLimitOverride {
+    uint32 requests_per_unit = 1;
+    RateLimitUnit unit = 2;
+  }
+
+  repeated Entry entries = 1;
+  RateLimitOverride limit = 2;
+  google.protobuf.UInt64Value hits_addend = 3;
+  bool is_negative_hits = 4;
+}
+
 message RateLimitRequest {
   string domain = 1;
-  repeated envoy.extensions.common.ratelimit.v3.RateLimitDescriptor descriptors = 2;
+  repeated RateLimitDescriptor descriptors = 2;
   uint32 hits_addend = 3;
 }
 
@@ -50,8 +82,8 @@ message RateLimitResponse {
 
   Code overall_code = 1;
   repeated DescriptorStatus statuses = 2;
-  repeated envoy.config.core.v3.HeaderValue response_headers_to_add = 3;
-  repeated envoy.config.core.v3.HeaderValue request_headers_to_add = 4;
+  repeated HeaderValue response_headers_to_add = 3;
+  repeated HeaderValue request_headers_to_add = 4;
   bytes raw_body = 5;
   google.protobuf.Struct dynamic_metadata = 6;
 }
