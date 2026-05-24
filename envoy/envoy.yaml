@@ -1,0 +1,125 @@
+# Envoy bootstrap configuration — Fulcrum
+#
+# This file is static. All routing, cluster, and listener configuration
+# is delivered dynamically by the control plane via the ADS gRPC stream.
+#
+# Environment variables resolved at startup (written by the VM boot script
+# after fetching from Azure Key Vault):
+#   NODE_GROUP        — logical node group, e.g. "region-eastus"
+#                       must match a NodeGroup.id in the control plane
+#   HOSTNAME          — unique per VM instance (use system hostname)
+#   CONTROL_PLANE_HOST — control plane DNS name or IP
+
+node:
+  cluster: "${NODE_GROUP}"
+  id: "${HOSTNAME}"
+
+static_resources:
+  clusters:
+
+    # -------------------------------------------------------------------------
+    # Control plane cluster — used to bootstrap the ADS gRPC stream.
+    # Must be static: cannot use ADS to discover the ADS server itself.
+    # mTLS certs are written to /etc/envoy/certs/ by the boot script.
+    # -------------------------------------------------------------------------
+    - name: control_plane
+      type: STRICT_DNS
+      connect_timeout: 5s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: control_plane
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: "${CONTROL_PLANE_HOST}"
+                      port_value: 18000
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/envoy/certs/client.crt
+                certificate_key:
+                  filename: /etc/envoy/certs/client.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/ca.crt
+
+    # -------------------------------------------------------------------------
+    # Auth sidecar — ext_authz handler (Rust process on localhost:9191).
+    # Static because it is always local; no discovery needed.
+    # HTTP/1.1 — the Envoy ext_authz HTTP API does not require HTTP/2.
+    # -------------------------------------------------------------------------
+    - name: auth_sidecar
+      type: STATIC
+      connect_timeout: 0.25s
+      load_assignment:
+        cluster_name: auth_sidecar
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 9191
+
+    # -------------------------------------------------------------------------
+    # Rate limit sidecar — implements envoy.service.ratelimit.v3 (Go, gRPC).
+    # Static for the same reason as auth_sidecar.
+    # Requires HTTP/2 because the rate limit API is gRPC-only.
+    # -------------------------------------------------------------------------
+    - name: ratelimit_sidecar
+      type: STATIC
+      connect_timeout: 0.25s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: ratelimit_sidecar
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 8081
+
+dynamic_resources:
+  # All four xDS resource types (LDS, RDS, CDS, EDS) flow through a single
+  # ADS stream to the control plane. This guarantees ordering — Envoy will not
+  # activate a listener that references a cluster it has not yet received.
+  ads_config:
+    api_type: GRPC
+    transport_api_version: V3
+    grpc_services:
+      - envoy_grpc:
+          cluster_name: control_plane
+    set_node_on_first_message_only: true
+  cds_config:
+    resource_api_version: V3
+    ads: {}
+  lds_config:
+    resource_api_version: V3
+    ads: {}
+
+admin:
+  # Bound to localhost only — never expose the admin API on a public interface.
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 9901
+  access_log:
+    - name: envoy.access_loggers.file
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+        path: /dev/null

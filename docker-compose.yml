@@ -1,0 +1,89 @@
+services:
+
+  broker:
+    build:
+      context: .
+      dockerfile: broker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - azurite
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: control-plane/Dockerfile
+    ports:
+      - "8081:8080"   # HTTP ops API (healthz, snapshots, etc.)
+      - "18000:18000" # gRPC ADS stream (Envoy connects here)
+    environment:
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - azurite
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment:
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - azurite
+
+  auth-sidecar:
+    build:
+      context: .
+      dockerfile: auth-sidecar/Dockerfile
+    ports:
+      - "9191:9191"
+    environment:
+      PYTHONUNBUFFERED: "1"
+
+  rate-limit-sidecar:
+    build:
+      context: .
+      dockerfile: rate-limit-sidecar/Dockerfile
+    ports:
+      - "8082:8081"
+    environment:
+      PYTHONUNBUFFERED: "1"
+
+  envoy:
+    image: envoyproxy/envoy:v1.32-latest
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "10443:443"  # inbound HTTPS (Front Door forwards here in prod)
+      - "9901:9901"  # Envoy admin interface (localhost only in prod)
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml"]
+    environment:
+      NODE_GROUP: local
+      HOSTNAME: envoy-local-1
+      CONTROL_PLANE_HOST: control-plane
+    depends_on:
+      - control-plane
+      - auth-sidecar
+      - rate-limit-sidecar
+
+  # Azure Blob Storage + Queue emulator.
+  # Covers: Blob Storage (config templates) and Queue (not Service Bus — see note below).
+  # Service Bus does not have an official local emulator; wire a real Azure Service Bus
+  # connection string via env var for worker development.
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+      - "10000:10000"  # Blob
+      - "10001:10001"  # Queue
+      - "10002:10002"  # Table
+
+  # Azure Cosmos DB emulator (commented out — image is ~4 GB).
+  # Uncomment to run a local Cosmos DB instance for broker / worker / control-plane dev.
+  # cosmosdb:
+  #   image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
+  #   ports:
+  #     - "8084:8081"
+  #   environment:
+  #     AZURE_COSMOS_EMULATOR_PARTITION_COUNT: "3"
+  #     AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "false"

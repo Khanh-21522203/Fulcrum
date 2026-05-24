@@ -1,0 +1,51 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments and local dependency state
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Build and packaging output
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and runtime artifacts
+*.log
+logs/
+*.pid
+*.sock
+
+# Docker and compose local overrides
+docker-compose.override.yml
+
+# Editor and OS metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local agent/workspace state
+.agents/
+.codex/
