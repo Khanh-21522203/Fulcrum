@@ -49,3 +49,4 @@ Thumbs.db
 # Local agent/workspace state
 .agents/
 .codex/
+tasks/

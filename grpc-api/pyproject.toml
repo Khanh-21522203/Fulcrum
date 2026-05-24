@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fulcrum-grpc-api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "grpcio>=1.64.1",
+    "protobuf>=5.0",
+]
+
+[project.optional-dependencies]
+codegen = [
+    "grpcio-tools>=1.60",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["fulcrum_grpc_api"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"fulcrum_grpc_api" = "fulcrum_grpc_api"

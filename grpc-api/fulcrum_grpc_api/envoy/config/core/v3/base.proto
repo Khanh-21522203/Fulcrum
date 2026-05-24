@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package envoy.config.core.v3;
+
+// Minimal HeaderValue definition needed by the Envoy rate limit service.
+message HeaderValue {
+  string key = 1;
+  string value = 2;
+}
