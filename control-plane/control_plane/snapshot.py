@@ -130,7 +130,7 @@ class StaticServiceInstanceSource:
             instance
             for instance in self._instances
             if instance.status == InstanceStatus.READY
-            and _instance_node_group(instance) == node_group
+            and instance_node_group(instance) == node_group
         ]
 
 
@@ -229,7 +229,7 @@ class _ServiceResource:
         return f"tls_{self.instance_id.hex}"
 
 
-def _instance_node_group(instance: ServiceInstance) -> str:
+def instance_node_group(instance: ServiceInstance) -> str:
     return str(instance.parameters.get("node_group") or DEFAULT_NODE_GROUP)
 
 

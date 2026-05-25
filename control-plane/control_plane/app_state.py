@@ -5,18 +5,16 @@ import uuid
 
 from fulcrum_shared.models import InstanceStatus, ServiceInstance
 
-from control_plane.snapshot import (
-    SnapshotBuilder,
-    SnapshotCache,
-    StaticServiceInstanceSource,
-)
+from control_plane.instances import InMemoryInstanceRepository
+from control_plane.snapshot import SnapshotBuilder, SnapshotCache
 
 snapshot_cache = SnapshotCache()
+instance_repository = InMemoryInstanceRepository()
 
 
-def _snapshot_builder() -> SnapshotBuilder:
+async def seed_dev_instance() -> None:
     if os.getenv("FULCRUM_DEV_SEED_INSTANCE") != "1":
-        return SnapshotBuilder()
+        return
 
     node_group = os.getenv("FULCRUM_DEV_NODE_GROUP", "local")
     instance = ServiceInstance(
@@ -35,7 +33,7 @@ def _snapshot_builder() -> SnapshotBuilder:
             "tls": False,
         },
     )
-    return SnapshotBuilder(StaticServiceInstanceSource([instance]))
+    await instance_repository.put(instance)
 
 
-snapshot_builder = _snapshot_builder()
+snapshot_builder = SnapshotBuilder(instance_repository)

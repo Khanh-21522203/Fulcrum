@@ -7,7 +7,7 @@ import grpc
 import uvicorn
 from fastapi import FastAPI
 from control_plane.api.ops import router as ops_router
-from control_plane.app_state import snapshot_builder, snapshot_cache
+from control_plane.app_state import seed_dev_instance, snapshot_builder, snapshot_cache
 from control_plane.xds.ads import AggregatedDiscoveryServicer
 from fulcrum_grpc_api.envoy.service.discovery.v3.ads_pb2_grpc import (
     add_AggregatedDiscoveryServiceServicer_to_server,
@@ -48,6 +48,7 @@ async def main() -> None:
 async def _seed_local_snapshot() -> None:
     if os.getenv("FULCRUM_DEV_SEED_INSTANCE") != "1":
         return
+    await seed_dev_instance()
     snapshot = await snapshot_builder.build("local")
     snapshot_cache.set(snapshot)
     logger.info("Seeded local snapshot version %s", snapshot.version)
