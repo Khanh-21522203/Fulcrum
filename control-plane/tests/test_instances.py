@@ -1,7 +1,7 @@
 import unittest
 import uuid
 
-from fulcrum_shared.models import InstanceStatus, ServiceInstance
+from fulcrum_shared.models import InstanceStatus, LastOperationType, ServiceInstance
 
 from control_plane.instances import InMemoryInstanceRepository
 
@@ -64,7 +64,7 @@ class InMemoryInstanceRepositoryTest(unittest.IsolatedAsyncioTestCase):
         stored = await repository.get(instance_id)
         self.assertEqual(stored.parameters["upstream_host"], "api.internal")
 
-    async def test_delete_removes_instance(self):
+    async def test_delete_marks_instance_deleted(self):
         repository = InMemoryInstanceRepository()
         instance_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
         await repository.put(instance(instance_id=instance_id))
@@ -72,7 +72,13 @@ class InMemoryInstanceRepositoryTest(unittest.IsolatedAsyncioTestCase):
         deleted = await repository.delete(instance_id)
 
         self.assertEqual(deleted.id, instance_id)
-        self.assertIsNone(await repository.get(instance_id))
+        self.assertEqual(deleted.status, InstanceStatus.DELETED)
+        self.assertEqual(deleted.last_operation.type, LastOperationType.DEPROVISION)
+        self.assertEqual(await repository.list(), [])
+        self.assertEqual(
+            [item.id for item in await repository.list(include_deleted=True)],
+            [instance_id],
+        )
 
 
 if __name__ == "__main__":

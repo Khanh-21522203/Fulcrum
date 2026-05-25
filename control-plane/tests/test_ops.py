@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from control_plane.api import ops
 from control_plane.app_state import instance_repository, snapshot_cache
 from control_plane.snapshot import Snapshot, SnapshotBuilder
+from fulcrum_shared.models import InstanceStatus, LastOperationType
 
 
 class StubSnapshotBuilder:
@@ -143,7 +144,65 @@ class ControlPlaneInstanceOpsTest(unittest.IsolatedAsyncioTestCase):
             "api.internal",
         )
 
-    async def test_delete_removes_instance_and_rebuilds_empty_snapshot(self):
+    async def test_patch_updates_instance_and_rebuilds_snapshot(self):
+        instance_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+        await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=instance_id,
+                node_group="region-eastus",
+                domains=["api.example.com"],
+                upstream_host="api.internal",
+                upstream_port=8080,
+            )
+        )
+
+        response = await ops.patch_instance(
+            instance_id,
+            ops.InstancePatchRequest(
+                domains=["api2.example.com"],
+                upstream_port=9090,
+            ),
+        )
+
+        self.assertEqual(response["status"], "updated")
+        self.assertEqual(
+            response["instance"]["parameters"]["domains"],
+            ["api2.example.com"],
+        )
+        self.assertEqual(response["instance"]["parameters"]["upstream_port"], 9090)
+        self.assertEqual(
+            response["instance"]["last_operation"]["type"],
+            LastOperationType.UPDATE.value,
+        )
+        self.assertEqual(response["snapshot"]["resources"]["clusters"], 1)
+
+    async def test_patch_rebuilds_old_and_new_node_groups_when_instance_moves(self):
+        instance_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+        await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=instance_id,
+                node_group="region-eastus",
+                domains=["api.example.com"],
+                upstream_host="api.internal",
+                upstream_port=8080,
+            )
+        )
+
+        await ops.patch_instance(
+            instance_id,
+            ops.InstancePatchRequest(node_group="region-westus"),
+        )
+
+        self.assertEqual(
+            snapshot_cache.get("region-eastus").resource_counts()["clusters"],
+            0,
+        )
+        self.assertEqual(
+            snapshot_cache.get("region-westus").resource_counts()["clusters"],
+            1,
+        )
+
+    async def test_delete_marks_instance_deleted_and_rebuilds_empty_snapshot(self):
         instance_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
         await ops.upsert_instance(
             ops.InstanceUpsertRequest(
@@ -158,10 +217,24 @@ class ControlPlaneInstanceOpsTest(unittest.IsolatedAsyncioTestCase):
         response = await ops.delete_instance(instance_id)
 
         self.assertEqual(response["status"], "deleted")
+        self.assertEqual(response["instance"]["status"], InstanceStatus.DELETED.value)
+        self.assertEqual(
+            response["instance"]["last_operation"]["type"],
+            LastOperationType.DEPROVISION.value,
+        )
         self.assertEqual(response["snapshot"]["resources"]["clusters"], 0)
-        with self.assertRaises(HTTPException) as raised:
-            await ops.get_instance(instance_id)
-        self.assertEqual(raised.exception.status_code, 404)
+        fetched = await ops.get_instance(instance_id)
+        self.assertEqual(fetched["instance"]["status"], InstanceStatus.DELETED.value)
+        listed = await ops.list_instances(node_group="region-eastus")
+        self.assertEqual(listed["instances"], [])
+        listed_deleted = await ops.list_instances(
+            node_group="region-eastus",
+            include_deleted=True,
+        )
+        self.assertEqual(
+            [item["id"] for item in listed_deleted["instances"]],
+            [str(instance_id)],
+        )
 
     async def test_rejects_invalid_ready_instance_before_storing(self):
         instance_id = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -180,6 +253,106 @@ class ControlPlaneInstanceOpsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIsNone(await instance_repository.get(instance_id))
+
+    async def test_rejects_duplicate_domain_in_node_group(self):
+        await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+                node_group="region-eastus",
+                domains=["api.example.com"],
+                upstream_host="api.internal",
+                upstream_port=8080,
+            )
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            await ops.upsert_instance(
+                ops.InstanceUpsertRequest(
+                    id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                    node_group="region-eastus",
+                    domains=["api.example.com"],
+                    upstream_host="api2.internal",
+                    upstream_port=8080,
+                )
+            )
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("Domain api.example.com", raised.exception.detail)
+
+    async def test_allows_same_domain_in_different_node_group(self):
+        await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+                node_group="region-eastus",
+                domains=["api.example.com"],
+                upstream_host="api.internal",
+                upstream_port=8080,
+            )
+        )
+
+        response = await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                node_group="region-westus",
+                domains=["api.example.com"],
+                upstream_host="api2.internal",
+                upstream_port=8080,
+            )
+        )
+
+        self.assertEqual(response["status"], "stored")
+
+    async def test_rejects_route_overlap_for_overlapping_domains(self):
+        await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+                node_group="region-eastus",
+                domains=["*"],
+                upstream_host="api.internal",
+                upstream_port=8080,
+                path_prefix="/api",
+            )
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            await ops.upsert_instance(
+                ops.InstanceUpsertRequest(
+                    id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                    node_group="region-eastus",
+                    domains=["api.example.com"],
+                    upstream_host="api2.internal",
+                    upstream_port=8080,
+                    path_prefix="/api/v1",
+                )
+            )
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("Route prefix", raised.exception.detail)
+
+    async def test_allows_non_overlapping_route_prefix_for_overlapping_domains(self):
+        await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+                node_group="region-eastus",
+                domains=["*"],
+                upstream_host="api.internal",
+                upstream_port=8080,
+                path_prefix="/api",
+            )
+        )
+
+        response = await ops.upsert_instance(
+            ops.InstanceUpsertRequest(
+                id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+                node_group="region-eastus",
+                domains=["api.example.com"],
+                upstream_host="api2.internal",
+                upstream_port=8080,
+                path_prefix="/admin",
+            )
+        )
+
+        self.assertEqual(response["status"], "stored")
 
 
 if __name__ == "__main__":

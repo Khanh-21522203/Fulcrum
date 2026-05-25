@@ -3,7 +3,14 @@ from __future__ import annotations
 from threading import RLock
 from uuid import UUID
 
-from fulcrum_shared.models import InstanceStatus, ServiceInstance
+from fulcrum_shared.models import (
+    InstanceStatus,
+    LastOperation,
+    LastOperationState,
+    LastOperationType,
+    ServiceInstance,
+    utc_now,
+)
 
 from control_plane.snapshot import DEFAULT_NODE_GROUP, instance_node_group
 
@@ -29,10 +36,23 @@ class InMemoryInstanceRepository:
 
     async def delete(self, instance_id: UUID) -> ServiceInstance | None:
         with self._lock:
-            instance = self._instances.pop(instance_id, None)
+            instance = self._instances.get(instance_id)
             if instance is None:
                 return None
-            return instance.model_copy(deep=True)
+            deleted = instance.model_copy(
+                deep=True,
+                update={
+                    "status": InstanceStatus.DELETED,
+                    "updated_at": utc_now(),
+                    "last_operation": LastOperation(
+                        type=LastOperationType.DEPROVISION,
+                        state=LastOperationState.SUCCEEDED,
+                        description="Instance deprovisioned from memory store.",
+                    ),
+                },
+            )
+            self._instances[instance_id] = deleted
+            return deleted.model_copy(deep=True)
 
     async def list(
         self,
