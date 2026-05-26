@@ -14,6 +14,12 @@ services:
       FULCRUM_MINIO_ACCESS_KEY: fulcrum
       FULCRUM_MINIO_SECRET_KEY: fulcrum-secret
       FULCRUM_OBJECT_STORE_BUCKET: fulcrum-artifacts
+      FULCRUM_DNS_PROVIDER: local-file
+      FULCRUM_CERTIFICATE_PROVIDER: local-file
+      FULCRUM_SECRET_STORE_PROVIDER: local-file
+      FULCRUM_LOCAL_STATE_DIR: /var/lib/fulcrum/local
+    volumes:
+      - local-provider-data:/var/lib/fulcrum/local
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +46,12 @@ services:
       FULCRUM_MINIO_ACCESS_KEY: fulcrum
       FULCRUM_MINIO_SECRET_KEY: fulcrum-secret
       FULCRUM_OBJECT_STORE_BUCKET: fulcrum-artifacts
+      FULCRUM_DNS_PROVIDER: local-file
+      FULCRUM_CERTIFICATE_PROVIDER: local-file
+      FULCRUM_SECRET_STORE_PROVIDER: local-file
+      FULCRUM_LOCAL_STATE_DIR: /var/lib/fulcrum/local
+    volumes:
+      - local-provider-data:/var/lib/fulcrum/local
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,6 +70,12 @@ services:
       FULCRUM_MINIO_ACCESS_KEY: fulcrum
       FULCRUM_MINIO_SECRET_KEY: fulcrum-secret
       FULCRUM_OBJECT_STORE_BUCKET: fulcrum-artifacts
+      FULCRUM_DNS_PROVIDER: local-file
+      FULCRUM_CERTIFICATE_PROVIDER: local-file
+      FULCRUM_SECRET_STORE_PROVIDER: local-file
+      FULCRUM_LOCAL_STATE_DIR: /var/lib/fulcrum/local
+    volumes:
+      - local-provider-data:/var/lib/fulcrum/local
     depends_on:
       postgres:
         condition: service_healthy
@@ -152,3 +170,4 @@ services:
 volumes:
   postgres-data:
   minio-data:
+  local-provider-data:
