@@ -4,10 +4,23 @@ import os
 import uuid
 
 from fulcrum_shared.models import InstanceStatus, ServiceInstance
-from fulcrum_shared.ports import SnapshotInstanceSource
+from fulcrum_shared.ports import ObjectStore, SnapshotInstanceSource
 
-from control_plane.instances import InMemoryInstanceRepository, PostgresInstanceSource
+from control_plane.instances import InMemoryInstanceRepository
 from control_plane.snapshot import SnapshotBuilder, SnapshotCache
+
+
+def _create_local_snapshot_source() -> SnapshotInstanceSource:
+    from fulcrum_provider_local import create_snapshot_source
+
+    return create_snapshot_source()
+
+
+def _create_local_object_store() -> ObjectStore:
+    from fulcrum_provider_local import create_object_store
+
+    return create_object_store()
+
 
 snapshot_cache = SnapshotCache()
 instance_repository = InMemoryInstanceRepository()
@@ -15,7 +28,12 @@ snapshot_source: SnapshotInstanceSource = (
     instance_repository
     if os.getenv("FULCRUM_CP_INSTANCE_SOURCE", "postgres") == "memory"
     or "FULCRUM_DATABASE_URL" not in os.environ
-    else PostgresInstanceSource()
+    else _create_local_snapshot_source()
+)
+object_store: ObjectStore | None = (
+    _create_local_object_store()
+    if os.getenv("FULCRUM_OBJECT_STORE_PROVIDER") == "minio"
+    else None
 )
 
 

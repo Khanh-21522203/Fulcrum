@@ -14,6 +14,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "fulcrum-grpc-api",
     "fulcrum-shared",
+    "fulcrum-provider-local",
 ]
 
 [tool.hatch.build.targets.wheel]
