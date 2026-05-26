@@ -2,9 +2,19 @@ from fulcrum_shared.models import ProvisioningTask
 
 
 async def handle(task: ProvisioningTask) -> None:
-    # Steps:
-    # 1. Validate payload (non-empty domains, reachable upstream)
-    # 2. Create Azure DNS records for each domain in task.payload["domains"]
-    # 3. Request or retrieve TLS certificate from Key Vault
-    # 4. Write ServiceInstance (status=ready, last_op=succeeded) to Cosmos DB
-    raise NotImplementedError
+    _validate_task_payload(task)
+
+
+def _validate_task_payload(task: ProvisioningTask) -> None:
+    instance = task.payload.get("instance")
+    if not isinstance(instance, dict):
+        raise ValueError("task payload missing instance")
+    parameters = instance.get("parameters")
+    if not isinstance(parameters, dict):
+        raise ValueError("task payload missing instance parameters")
+    if not parameters.get("domains"):
+        raise ValueError("task payload missing domains")
+    if not parameters.get("upstream_host"):
+        raise ValueError("task payload missing upstream_host")
+    if int(parameters.get("upstream_port") or 0) <= 0:
+        raise ValueError("task payload has invalid upstream_port")

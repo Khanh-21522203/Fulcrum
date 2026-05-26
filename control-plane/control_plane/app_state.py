@@ -5,11 +5,17 @@ import uuid
 
 from fulcrum_shared.models import InstanceStatus, ServiceInstance
 
-from control_plane.instances import InMemoryInstanceRepository
+from control_plane.instances import InMemoryInstanceRepository, PostgresInstanceSource
 from control_plane.snapshot import SnapshotBuilder, SnapshotCache
 
 snapshot_cache = SnapshotCache()
 instance_repository = InMemoryInstanceRepository()
+snapshot_source = (
+    instance_repository
+    if os.getenv("FULCRUM_CP_INSTANCE_SOURCE", "postgres") == "memory"
+    or "FULCRUM_DATABASE_URL" not in os.environ
+    else PostgresInstanceSource()
+)
 
 
 async def seed_dev_instance() -> None:
@@ -36,4 +42,4 @@ async def seed_dev_instance() -> None:
     await instance_repository.put(instance)
 
 
-snapshot_builder = SnapshotBuilder(instance_repository)
+snapshot_builder = SnapshotBuilder(snapshot_source)

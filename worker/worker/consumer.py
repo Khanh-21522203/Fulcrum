@@ -1,11 +1,13 @@
-# Service Bus message processing strategy:
-#   - Receive with peek-lock (message not consumed until explicitly completed)
-#   - Transient error  → abandon message; Service Bus re-delivers with backoff
-#   - Permanent error  → dead-letter the message after MaxDeliveryCount reached
-#   - Idempotency      → check ServiceInstance.status before writing to Cosmos DB
+from __future__ import annotations
+
+import asyncio
+import logging
 
 from fulcrum_shared.models import TaskType
 from worker.handlers import deprovision, provision, update
+from worker.repository import PostgresTaskRepository
+
+logger = logging.getLogger(__name__)
 
 _HANDLERS = {
     TaskType.PROVISION: provision.handle,
@@ -14,14 +16,39 @@ _HANDLERS = {
 }
 
 
-class ServiceBusConsumer:
-    """Consumes ProvisioningTask messages from Azure Service Bus."""
+class PostgresOutboxConsumer:
+    def __init__(
+        self,
+        repository: PostgresTaskRepository | None = None,
+        *,
+        poll_interval_seconds: float = 2.0,
+    ) -> None:
+        self._repository = repository or PostgresTaskRepository()
+        self._poll_interval_seconds = poll_interval_seconds
 
     async def start(self) -> None:
-        # TODO: create ServiceBusClient from connection string / managed identity
-        # TODO: open a receiver on the provisioning topic subscription
-        # TODO: loop: receive message → deserialise ProvisioningTask
-        #             → dispatch to _HANDLERS[task.task_type]
-        #             → complete on success, abandon on transient error,
-        #               dead-letter on permanent error
-        raise NotImplementedError
+        while True:
+            processed = await self.process_once()
+            if not processed:
+                await asyncio.sleep(self._poll_interval_seconds)
+
+    async def process_once(self) -> bool:
+        claimed = await self._repository.claim_next()
+        if claimed is None:
+            return False
+
+        task = claimed.task
+        logger.info("Processing %s task %s", task.task_type.value, task.task_id)
+        try:
+            await _HANDLERS[task.task_type](task)
+        except Exception as exc:
+            logger.error("Task %s failed: %s", task.task_id, exc)
+            await self._repository.fail(task, str(exc))
+            return True
+
+        await self._repository.complete(task)
+        logger.info("Task %s completed", task.task_id)
+        return True
+
+
+ServiceBusConsumer = PostgresOutboxConsumer

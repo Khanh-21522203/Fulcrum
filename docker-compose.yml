@@ -28,6 +28,7 @@ services:
       FULCRUM_DEV_NODE_GROUP: "local"
       FULCRUM_DEV_UPSTREAM_HOST: "control-plane"
       FULCRUM_DEV_UPSTREAM_PORT: "8080"
+      FULCRUM_CP_INSTANCE_SOURCE: memory
       FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
     depends_on:
       postgres:
