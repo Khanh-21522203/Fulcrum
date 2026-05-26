@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from fulcrum_shared.models import TaskType
+from fulcrum_shared.ports import ProvisioningTaskQueue
 from worker.handlers import deprovision, provision, update
 from worker.repository import PostgresTaskRepository
 
@@ -19,7 +20,7 @@ _HANDLERS = {
 class PostgresOutboxConsumer:
     def __init__(
         self,
-        repository: PostgresTaskRepository | None = None,
+        repository: ProvisioningTaskQueue | None = None,
         *,
         poll_interval_seconds: float = 2.0,
     ) -> None:

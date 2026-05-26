@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import uuid
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,12 +13,10 @@ from fulcrum_shared.models import (
     ProvisioningTask,
     TaskType,
 )
+from fulcrum_shared.ports import ClaimedProvisioningTask
 
 
-@dataclass(frozen=True)
-class ClaimedTask:
-    task: ProvisioningTask
-    status: str
+ClaimedTask = ClaimedProvisioningTask
 
 
 class PostgresTaskRepository:

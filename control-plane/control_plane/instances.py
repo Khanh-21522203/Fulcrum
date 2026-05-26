@@ -14,12 +14,13 @@ from fulcrum_shared.models import (
     ServiceInstance,
     utc_now,
 )
+from fulcrum_shared.ports import SnapshotInstanceSource
 
 from control_plane.snapshot import DEFAULT_NODE_GROUP, instance_node_group
 
 
-class InMemoryInstanceRepository:
-    """Process-local ServiceInstance store used before Cosmos DB is wired in."""
+class InMemoryInstanceRepository(SnapshotInstanceSource):
+    """Process-local ServiceInstance store used for local development and tests."""
 
     def __init__(self) -> None:
         self._lock = RLock()
@@ -87,7 +88,7 @@ class InMemoryInstanceRepository:
             self._instances.clear()
 
 
-class PostgresInstanceSource:
+class PostgresInstanceSource(SnapshotInstanceSource):
     """Read-only ServiceInstance source for xDS snapshots."""
 
     def __init__(self, database_url: str | None = None) -> None:

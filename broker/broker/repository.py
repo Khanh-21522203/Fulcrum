@@ -5,7 +5,7 @@ import json
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any
 
 from fulcrum_shared.models import (
     InstanceStatus,
@@ -15,18 +15,9 @@ from fulcrum_shared.models import (
     ProvisioningTask,
     ServiceInstance,
 )
+from fulcrum_shared.ports import InstanceStore
 
-
-class InstanceRepository(Protocol):
-    async def get(self, instance_id: uuid.UUID) -> ServiceInstance | None:
-        ...
-
-    async def put_with_task(
-        self,
-        instance: ServiceInstance,
-        task: ProvisioningTask,
-    ) -> None:
-        ...
+InstanceRepository = InstanceStore
 
 
 class PostgresInstanceRepository:

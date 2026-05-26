@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from time import time_ns
-from typing import Protocol, Sequence
+from typing import Sequence
 from uuid import UUID
 
 from google.protobuf.any_pb2 import Any
@@ -27,6 +27,7 @@ from fulcrum_grpc_api.envoy.extensions.filters.network.http_connection_manager.v
 from fulcrum_grpc_api.envoy.extensions.transport_sockets.tls.v3 import secret_pb2
 from fulcrum_grpc_api.envoy.service.runtime.v3 import runtime_pb2
 from fulcrum_shared.models import InstanceStatus, ServiceInstance
+from fulcrum_shared.ports import SnapshotInstanceSource
 
 from control_plane.xds.types import (
     CDS_TYPE_URL,
@@ -111,11 +112,6 @@ class SnapshotCache:
         self._previous.clear()
 
 
-class ServiceInstanceSource(Protocol):
-    async def list_ready(self, node_group: str) -> Sequence[ServiceInstance]:
-        ...
-
-
 class EmptyServiceInstanceSource:
     async def list_ready(self, node_group: str) -> Sequence[ServiceInstance]:
         return ()
@@ -139,7 +135,7 @@ class SnapshotBuilder:
 
     def __init__(
         self,
-        source: ServiceInstanceSource | None = None,
+        source: SnapshotInstanceSource | None = None,
         *,
         listener_address: str = DEFAULT_LISTENER_ADDRESS,
         listener_port: int = DEFAULT_LISTENER_PORT,
@@ -152,7 +148,7 @@ class SnapshotBuilder:
         instances = list(await self._source.list_ready(node_group))
         resources = [_ServiceResource.from_instance(instance) for instance in instances]
 
-        # TODO: fetch Jinja2 templates from Blob Storage
+        # TODO: fetch templates from the configured object-store provider.
         return Snapshot(
             node_group=node_group,
             version=str(time_ns()),

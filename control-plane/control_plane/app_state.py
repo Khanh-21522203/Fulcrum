@@ -4,13 +4,14 @@ import os
 import uuid
 
 from fulcrum_shared.models import InstanceStatus, ServiceInstance
+from fulcrum_shared.ports import SnapshotInstanceSource
 
 from control_plane.instances import InMemoryInstanceRepository, PostgresInstanceSource
 from control_plane.snapshot import SnapshotBuilder, SnapshotCache
 
 snapshot_cache = SnapshotCache()
 instance_repository = InMemoryInstanceRepository()
-snapshot_source = (
+snapshot_source: SnapshotInstanceSource = (
     instance_repository
     if os.getenv("FULCRUM_CP_INSTANCE_SOURCE", "postgres") == "memory"
     or "FULCRUM_DATABASE_URL" not in os.environ

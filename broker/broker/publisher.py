@@ -2,7 +2,7 @@ from fulcrum_shared.models import ProvisioningTask
 
 
 class TaskPublisher:
-    """Serialises and publishes ProvisioningTask messages to Azure Service Bus."""
+    """Publishes ProvisioningTask messages through the configured task provider."""
 
     async def publish(self, task: ProvisioningTask) -> None:
         raise NotImplementedError

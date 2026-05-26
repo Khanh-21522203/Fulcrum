@@ -7,7 +7,6 @@ name = "worker"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "azure-servicebus>=7.12",
     "psycopg[binary]>=3.2",
     "fulcrum-shared",
 ]
