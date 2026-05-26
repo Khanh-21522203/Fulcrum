@@ -4,8 +4,18 @@ import asyncio
 import logging
 
 from fulcrum_shared.models import TaskType
-from fulcrum_shared.ports import ProvisioningTaskQueue
+from fulcrum_shared.ports import (
+    CertificateProvider,
+    DnsProvider,
+    ProvisioningTaskQueue,
+    SecretStore,
+)
 from worker.handlers import deprovision, provision, update
+from worker.providers import (
+    create_certificate_provider,
+    create_dns_provider,
+    create_secret_store,
+)
 from worker.repository import PostgresTaskRepository
 
 logger = logging.getLogger(__name__)
@@ -21,10 +31,16 @@ class PostgresOutboxConsumer:
     def __init__(
         self,
         repository: ProvisioningTaskQueue | None = None,
+        dns_provider: DnsProvider | None = None,
+        certificate_provider: CertificateProvider | None = None,
+        secret_store: SecretStore | None = None,
         *,
         poll_interval_seconds: float = 2.0,
     ) -> None:
         self._repository = repository or PostgresTaskRepository()
+        self._dns_provider = dns_provider or create_dns_provider()
+        self._certificate_provider = certificate_provider or create_certificate_provider()
+        self._secret_store = secret_store or create_secret_store()
         self._poll_interval_seconds = poll_interval_seconds
 
     async def start(self) -> None:
@@ -41,7 +57,12 @@ class PostgresOutboxConsumer:
         task = claimed.task
         logger.info("Processing %s task %s", task.task_type.value, task.task_id)
         try:
-            await _HANDLERS[task.task_type](task)
+            await _HANDLERS[task.task_type](
+                task,
+                self._dns_provider,
+                self._certificate_provider,
+                self._secret_store,
+            )
         except Exception as exc:
             logger.error("Task %s failed: %s", task.task_id, exc)
             await self._repository.fail(task, str(exc))

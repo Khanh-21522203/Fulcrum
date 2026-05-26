@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "psycopg[binary]>=3.2",
     "fulcrum-shared",
+    "fulcrum-provider-local",
 ]
 
 [tool.hatch.build.targets.wheel]
