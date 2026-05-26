@@ -9,11 +9,16 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
+      FULCRUM_OBJECT_STORE_PROVIDER: minio
+      FULCRUM_MINIO_ENDPOINT: minio:9000
+      FULCRUM_MINIO_ACCESS_KEY: fulcrum
+      FULCRUM_MINIO_SECRET_KEY: fulcrum-secret
+      FULCRUM_OBJECT_STORE_BUCKET: fulcrum-artifacts
     depends_on:
       postgres:
         condition: service_healthy
-      azurite:
-        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
 
   control-plane:
     build:
@@ -30,11 +35,16 @@ services:
       FULCRUM_DEV_UPSTREAM_PORT: "8080"
       FULCRUM_CP_INSTANCE_SOURCE: memory
       FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
+      FULCRUM_OBJECT_STORE_PROVIDER: minio
+      FULCRUM_MINIO_ENDPOINT: minio:9000
+      FULCRUM_MINIO_ACCESS_KEY: fulcrum
+      FULCRUM_MINIO_SECRET_KEY: fulcrum-secret
+      FULCRUM_OBJECT_STORE_BUCKET: fulcrum-artifacts
     depends_on:
       postgres:
         condition: service_healthy
-      azurite:
-        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -43,11 +53,16 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
+      FULCRUM_OBJECT_STORE_PROVIDER: minio
+      FULCRUM_MINIO_ENDPOINT: minio:9000
+      FULCRUM_MINIO_ACCESS_KEY: fulcrum
+      FULCRUM_MINIO_SECRET_KEY: fulcrum-secret
+      FULCRUM_OBJECT_STORE_BUCKET: fulcrum-artifacts
     depends_on:
       postgres:
         condition: service_healthy
-      azurite:
-        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
 
   auth-sidecar:
     build:
@@ -84,16 +99,28 @@ services:
       - auth-sidecar
       - rate-limit-sidecar
 
-  # Azure Blob Storage + Queue emulator.
-  # Covers: Blob Storage (config templates) and Queue (not Service Bus — see note below).
-  # Service Bus does not have an official local emulator; wire a real Azure Service Bus
-  # connection string via env var for worker development.
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
+  minio:
+    image: minio/minio:latest
     ports:
-      - "10000:10000"  # Blob
-      - "10001:10001"  # Queue
-      - "10002:10002"  # Table
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: fulcrum
+      MINIO_ROOT_PASSWORD: fulcrum-secret
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until mc alias set local http://minio:9000 fulcrum fulcrum-secret; do sleep 1; done &&
+        mc mb --ignore-existing local/fulcrum-artifacts
 
   postgres:
     image: postgres:16-alpine
@@ -124,3 +151,4 @@ services:
 
 volumes:
   postgres-data:
+  minio-data:
