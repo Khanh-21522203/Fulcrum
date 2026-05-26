@@ -8,8 +8,12 @@ services:
       - "8080:8080"
     environment:
       PYTHONUNBUFFERED: "1"
+      FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
     depends_on:
-      - azurite
+      postgres:
+        condition: service_healthy
+      azurite:
+        condition: service_started
 
   control-plane:
     build:
@@ -24,8 +28,12 @@ services:
       FULCRUM_DEV_NODE_GROUP: "local"
       FULCRUM_DEV_UPSTREAM_HOST: "control-plane"
       FULCRUM_DEV_UPSTREAM_PORT: "8080"
+      FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
     depends_on:
-      - azurite
+      postgres:
+        condition: service_healthy
+      azurite:
+        condition: service_started
 
   worker:
     build:
@@ -33,8 +41,12 @@ services:
       dockerfile: worker/Dockerfile
     environment:
       PYTHONUNBUFFERED: "1"
+      FULCRUM_DATABASE_URL: postgresql://fulcrum:fulcrum@postgres:5432/fulcrum
     depends_on:
-      - azurite
+      postgres:
+        condition: service_healthy
+      azurite:
+        condition: service_started
 
   auth-sidecar:
     build:
@@ -82,6 +94,23 @@ services:
       - "10001:10001"  # Queue
       - "10002:10002"  # Table
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fulcrum
+      POSTGRES_USER: fulcrum
+      POSTGRES_PASSWORD: fulcrum
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fulcrum -d fulcrum"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   # Azure Cosmos DB emulator (commented out — image is ~4 GB).
   # Uncomment to run a local Cosmos DB instance for broker / worker / control-plane dev.
   # cosmosdb:
@@ -91,3 +120,6 @@ services:
   #   environment:
   #     AZURE_COSMOS_EMULATOR_PARTITION_COUNT: "3"
   #     AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "false"
+
+volumes:
+  postgres-data:
