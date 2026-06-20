@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fulcrum Architecture Deep Dive</title>
+<script>
+  (function () {
+    const saved = localStorage.getItem("fulcrum-diagram-theme");
+    const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.classList.toggle("dark", dark);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #f7f5ef;
+    --surface: #ffffff;
+    --surface-2: #eeece3;
+    --surface-3: #e4f0ea;
+    --ink: #171717;
+    --body: #3e403d;
+    --muted: #797b74;
+    --line: #c9c7bd;
+    --soft-line: #e3e0d6;
+    --zone: rgba(23, 23, 23, 0.035);
+    --zone-alt: rgba(31, 118, 146, 0.055);
+    --done: #4f8a67;
+    --done-soft: rgba(79, 138, 103, 0.14);
+    --todo: #b8664c;
+    --todo-soft: rgba(184, 102, 76, 0.14);
+    --flow: #246b8f;
+    --flow-soft: rgba(36, 107, 143, 0.14);
+    --purple: #7263a5;
+    --purple-soft: rgba(114, 99, 165, 0.13);
+    --shadow: rgba(30, 29, 25, 0.12);
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+  }
+
+  html.dark {
+    --bg: #151615;
+    --surface: #20211f;
+    --surface-2: #2b2c29;
+    --surface-3: #1e312b;
+    --ink: #fbfaf4;
+    --body: #d4d1c7;
+    --muted: #94958d;
+    --line: #464741;
+    --soft-line: #30312e;
+    --zone: rgba(251, 250, 244, 0.035);
+    --zone-alt: rgba(100, 173, 198, 0.08);
+    --done: #75b98e;
+    --done-soft: rgba(117, 185, 142, 0.16);
+    --todo: #df9074;
+    --todo-soft: rgba(223, 144, 116, 0.16);
+    --flow: #65a9cb;
+    --flow-soft: rgba(101, 169, 203, 0.18);
+    --purple: #a99ce2;
+    --purple-soft: rgba(169, 156, 226, 0.16);
+    --shadow: rgba(0, 0, 0, 0.32);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--body);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .bar {
+    height: 68px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--soft-line);
+    background: var(--bg);
+  }
+
+  .title { min-width: 245px; }
+  h1 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 540;
+    line-height: 1.1;
+  }
+  .subtitle {
+    margin-top: 5px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .chips {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  .chip, .icon-btn {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+
+  .chip {
+    min-height: 30px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .chip:hover, .icon-btn:hover {
+    color: var(--ink);
+    border-color: var(--muted);
+  }
+
+  .chip.on {
+    color: var(--bg);
+    background: var(--ink);
+    border-color: var(--ink);
+  }
+
+  .spacer { flex: 1; }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+
+  .stage {
+    position: relative;
+    height: calc(100vh - 68px);
+    min-height: 0;
+  }
+
+  svg.arch {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: auto;
+    width: calc(100% - 355px);
+    height: 100%;
+    display: block;
+  }
+
+  .zone rect {
+    fill: var(--zone);
+    stroke: var(--line);
+    stroke-dasharray: 7 5;
+    stroke-width: 1.2;
+    rx: 16;
+  }
+
+  .zone.alt rect { fill: var(--zone-alt); }
+  .zone text {
+    fill: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .node { cursor: pointer; transition: opacity 160ms ease; }
+  .node rect, .node path.diamond {
+    fill: var(--surface);
+    stroke: var(--line);
+    stroke-width: 1.5;
+    transition: stroke 150ms ease, fill 150ms ease, filter 150ms ease;
+  }
+  .node:hover rect, .node:hover path.diamond { stroke: var(--muted); }
+  .node.sel rect, .node.sel path.diamond {
+    stroke: var(--flow);
+    stroke-width: 2.4;
+    filter: drop-shadow(0 6px 10px var(--shadow));
+  }
+  .node.done rect, .node.done path.diamond { fill: var(--done-soft); stroke: var(--done); }
+  .node.todo rect, .node.todo path.diamond { fill: var(--todo-soft); stroke: var(--todo); stroke-dasharray: 6 4; }
+  .node.port rect { fill: var(--purple-soft); stroke: var(--purple); }
+  .node.store rect { fill: var(--surface-2); }
+  .node.edgebox rect { fill: var(--flow-soft); stroke: var(--flow); }
+  .node .t {
+    fill: var(--ink);
+    font-size: 14px;
+    font-weight: 650;
+    font-family: var(--sans);
+    pointer-events: none;
+  }
+  .node .m {
+    fill: var(--muted);
+    font-size: 10.8px;
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+  .node .k {
+    fill: var(--flow);
+    font-size: 9.5px;
+    font-family: var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .node.todo .k { fill: var(--todo); }
+  .node.done .k { fill: var(--done); }
+  .node.port .k { fill: var(--purple); }
+
+  .edge {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.6;
+    marker-end: url(#arrow-muted);
+    opacity: 0.7;
+    transition: opacity 170ms ease, stroke 170ms ease, stroke-width 170ms ease;
+  }
+  .edge.thick { stroke-width: 2.2; }
+  .edge.dash { stroke-dasharray: 6 5; }
+  .edge.todo { stroke: var(--todo); marker-end: url(#arrow-todo); stroke-dasharray: 7 5; opacity: 0.48; }
+  .edge.done { stroke: var(--done); marker-end: url(#arrow-done); opacity: 0.62; }
+  .edge.port { stroke: var(--purple); marker-end: url(#arrow-purple); opacity: 0.58; }
+
+  .elbl {
+    fill: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    transition: opacity 170ms ease, fill 170ms ease;
+  }
+
+  .stage.flowing .edge, .stage.flowing .elbl { opacity: 0.1; }
+  .stage.flowing .node { opacity: 0.26; }
+  .stage.flowing .zone { opacity: 0.38; }
+  .stage.flowing .node.lit, .stage.flowing .zone.lit { opacity: 1; }
+  .stage.flowing .node.lit rect,
+  .stage.flowing .node.lit path.diamond {
+    stroke: var(--flow);
+    stroke-width: 2.4;
+    filter: drop-shadow(0 6px 11px var(--shadow));
+  }
+  .stage.flowing .edge.lit {
+    opacity: 1;
+    stroke: var(--flow);
+    stroke-width: 3;
+    marker-end: url(#arrow-flow);
+    stroke-dasharray: 8 6;
+    animation: march 850ms linear infinite;
+  }
+  .stage.flowing .edge.lit.todo {
+    stroke: var(--todo);
+    marker-end: url(#arrow-todo);
+  }
+  .stage.flowing .edge.lit.done {
+    stroke: var(--done);
+    marker-end: url(#arrow-done);
+  }
+  .stage.flowing .edge.lit.port {
+    stroke: var(--purple);
+    marker-end: url(#arrow-purple);
+  }
+  .stage.flowing .elbl.lit {
+    opacity: 1;
+    fill: var(--flow);
+  }
+
+  @keyframes march { to { stroke-dashoffset: -14; } }
+  @media (prefers-reduced-motion: reduce) {
+    .stage.flowing .edge.lit { animation: none; }
+  }
+
+  .card {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 14px 34px var(--shadow);
+  }
+
+  #detail {
+    right: 14px;
+    top: 64px;
+    bottom: 14px;
+    width: 330px;
+    padding: 15px 16px;
+    overflow: auto;
+  }
+  #detail h2 {
+    margin: 0 0 2px;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 19px;
+    font-weight: 540;
+  }
+  #detail .meta {
+    margin-bottom: 9px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10.5px;
+  }
+  #detail p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  #detail ul {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  #detail li {
+    position: relative;
+    padding-left: 15px;
+    margin: 6px 0;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  #detail li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 7px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--flow);
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    color: var(--flow);
+  }
+
+  #flowcap {
+    left: 14px;
+    bottom: 14px;
+    width: min(455px, calc(100vw - 28px));
+    padding: 14px 16px;
+    display: none;
+  }
+  #flowcap.show { display: block; }
+  #flowcap .name {
+    color: var(--flow);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+  }
+  #flowcap ol {
+    margin: 0 0 0 18px;
+    padding: 0;
+  }
+  #flowcap li {
+    font-size: 12px;
+    line-height: 1.48;
+    margin: 4px 0;
+  }
+
+  .legend {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    box-shadow: 0 7px 18px var(--shadow);
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--flow);
+  }
+  .dot.done { background: var(--done); }
+  .dot.todo { background: var(--todo); }
+  .dot.port { background: var(--purple); }
+
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    .bar { height: auto; align-items: flex-start; flex-wrap: wrap; }
+    .stage { height: 820px; }
+    svg.arch { right: 0; }
+    #detail, #flowcap { position: static; margin: 10px 14px; width: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="title">
+    <h1>Fulcrum Architecture</h1>
+    <div class="subtitle">implemented + planned feature map</div>
+  </div>
+  <div class="chips" id="chips">
+    <button class="chip on" data-flow="all">Everything</button>
+    <button class="chip" data-flow="provision">Provision</button>
+    <button class="chip" data-flow="worker">Worker side effects</button>
+    <button class="chip" data-flow="snapshot">Snapshot + xDS</button>
+    <button class="chip" data-flow="traffic">Customer traffic</button>
+    <button class="chip" data-flow="auth">Auth</button>
+    <button class="chip" data-flow="ratelimit">Rate limit</button>
+    <button class="chip" data-flow="provider">Provider boundary</button>
+    <button class="chip" data-flow="roadmap">Not done</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3v2.5M12 18.5V21M4.2 4.2l1.8 1.8M18 18l1.8 1.8M3 12h2.5M18.5 12H21M4.2 19.8 6 18M18 6l1.8-1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </svg>
+  </button>
+</div>
+
+<div class="stage" id="stage">
+  <div class="legend">
+    <span class="pill"><span class="dot done"></span>done in repo</span>
+    <span class="pill"><span class="dot port"></span>provider port</span>
+    <span class="pill"><span class="dot todo"></span>planned / gap</span>
+    <span class="pill"><span class="dot"></span>active flow</span>
+  </div>
+
+  <svg class="arch" viewBox="0 0 1800 1100" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Fulcrum architecture and feature flow diagram">
+    <defs>
+      <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/>
+      </marker>
+      <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--flow)"/>
+      </marker>
+      <marker id="arrow-done" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--done)"/>
+      </marker>
+      <marker id="arrow-todo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--todo)"/>
+      </marker>
+      <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" style="fill: var(--purple)"/>
+      </marker>
+    </defs>
+
+    <g class="zone" id="z-users">
+      <rect x="40" y="120" width="230" height="750"/>
+      <text x="60" y="150">Actors</text>
+    </g>
+    <g class="zone alt" id="z-control">
+      <rect x="310" y="90" width="560" height="820"/>
+      <text x="330" y="120">Control services</text>
+    </g>
+    <g class="zone" id="z-provider">
+      <rect x="920" y="105" width="330" height="785"/>
+      <text x="940" y="135">Provider boundary</text>
+    </g>
+    <g class="zone alt" id="z-data">
+      <rect x="1290" y="105" width="235" height="785"/>
+      <text x="1310" y="135">Local data plane</text>
+    </g>
+    <g class="zone" id="z-prod">
+      <rect x="1560" y="120" width="205" height="750"/>
+      <text x="1580" y="150">Future providers</text>
+    </g>
+
+    <!-- Edges -->
+    <path class="edge thick done" id="e-dev-broker" d="M250,235 C300,235 310,235 355,235"/>
+    <path class="edge done" id="e-broker-repo" d="M560,250 C615,250 620,214 675,214"/>
+    <path class="edge done" id="e-broker-task" d="M560,282 C622,282 620,338 675,338"/>
+    <path class="edge done" id="e-repo-pg" d="M875,214 C1010,214 1192,204 1308,212"/>
+    <path class="edge done" id="e-task-pg" d="M875,338 C1005,338 1190,276 1308,246"/>
+    <path class="edge done" id="e-worker-claim" d="M780,518 C920,448 1150,300 1308,258"/>
+    <path class="edge done" id="e-worker-dns" d="M780,560 C850,572 858,572 940,572"/>
+    <path class="edge done" id="e-worker-cert" d="M780,596 C852,630 858,636 940,650"/>
+    <path class="edge done" id="e-worker-complete" d="M780,530 C905,494 1175,334 1308,236"/>
+    <path class="edge done" id="e-cp-source" d="M675,735 C810,735 1182,304 1308,260"/>
+    <path class="edge done" id="e-cp-cache" d="M560,735 C610,735 625,735 675,735"/>
+    <path class="edge thick done" id="e-envoy-ads" d="M1308,528 C1110,500 858,705 560,735"/>
+    <path class="edge done" id="e-envoy-auth" d="M1370,646 L1370,682"/>
+    <path class="edge done" id="e-envoy-rl" d="M1450,646 L1450,790"/>
+    <path class="edge thick done" id="e-customer-envoy" d="M250,685 C590,685 1000,585 1308,566"/>
+    <path class="edge done" id="e-envoy-upstream" d="M1508,566 C1545,566 1548,566 1588,566"/>
+    <path class="edge done" id="e-auth-decision" d="M1350,682 L1350,646"/>
+    <path class="edge done" id="e-rl-decision" d="M1430,790 L1430,646"/>
+    <path class="edge port" id="e-ports-broker" d="M948,254 C840,236 700,228 560,235"/>
+    <path class="edge port" id="e-ports-worker" d="M948,456 C870,477 830,496 780,520"/>
+    <path class="edge port" id="e-ports-cp" d="M948,390 C835,472 650,676 560,735"/>
+    <path class="edge todo" id="e-template-gap" d="M1308,360 C1120,470 1000,792 850,837"/>
+    <path class="edge todo" id="e-cloud-db" d="M1524,210 C1548,210 1548,210 1588,210"/>
+    <path class="edge todo" id="e-cloud-queue" d="M1524,250 C1548,250 1548,250 1588,250"/>
+    <path class="edge todo" id="e-cloud-storage" d="M1524,340 C1548,340 1548,340 1588,340"/>
+    <path class="edge todo" id="e-cloud-dns" d="M1115,572 C1335,500 1460,438 1588,438"/>
+    <path class="edge todo" id="e-cloud-cert" d="M1115,650 C1332,620 1465,478 1588,478"/>
+    <path class="edge todo" id="e-frontdoor" d="M250,760 C762,840 1240,780 1588,690"/>
+    <path class="edge todo" id="e-vmss" d="M1524,566 C1548,592 1548,612 1588,646"/>
+    <path class="edge todo" id="e-sidecar-policy" d="M560,790 C710,858 885,782 948,780"/>
+    <path class="edge todo" id="e-limit-policy" d="M560,805 C710,900 890,840 948,822"/>
+    <path class="edge todo" id="e-observe" d="M1470,650 C1525,730 1548,795 1588,808"/>
+
+    <!-- Edge labels -->
+    <text class="elbl" data-e="e-dev-broker" x="284" y="218">OSB REST · 8080</text>
+    <text class="elbl" data-e="e-broker-repo" x="590" y="238">validate + upsert</text>
+    <text class="elbl" data-e="e-broker-task" x="585" y="318">same transaction</text>
+    <text class="elbl" data-e="e-worker-claim" x="1015" y="448">FOR UPDATE SKIP LOCKED</text>
+    <text class="elbl" data-e="e-worker-dns" x="823" y="554">CNAME intent</text>
+    <text class="elbl" data-e="e-worker-cert" x="812" y="632">tls material if supplied</text>
+    <text class="elbl" data-e="e-cp-source" x="910" y="720">ready rows only</text>
+    <text class="elbl" data-e="e-envoy-ads" x="1005" y="504">ADS gRPC · 18000</text>
+    <text class="elbl" data-e="e-customer-envoy" x="720" y="646">HTTP ingress · 10080 local</text>
+    <text class="elbl" data-e="e-envoy-auth" x="1220" y="640">ext_authz gRPC</text>
+    <text class="elbl" data-e="e-envoy-rl" x="1230" y="742">RLS gRPC</text>
+    <text class="elbl" data-e="e-template-gap" x="700" y="660">planned template read</text>
+    <text class="elbl" data-e="e-frontdoor" x="1155" y="830">prod ingress / edge fleet planned</text>
+
+    <!-- Actors -->
+    <g class="node done" data-k="developer">
+      <rect x="70" y="190" width="180" height="88" rx="9"/>
+      <text class="k" x="88" y="215">actor</text>
+      <text class="t" x="88" y="238">Developer</text>
+      <text class="m" x="88" y="259">provision/update/delete</text>
+    </g>
+    <g class="node done" data-k="customer">
+      <rect x="70" y="635" width="180" height="92" rx="9"/>
+      <text class="k" x="88" y="660">actor</text>
+      <text class="t" x="88" y="683">Customer</text>
+      <text class="m" x="88" y="704">request hits edge</text>
+    </g>
+    <g class="node todo" data-k="internet">
+      <rect x="70" y="745" width="180" height="84" rx="9"/>
+      <text class="k" x="88" y="770">planned</text>
+      <text class="t" x="88" y="793">Internet path</text>
+      <text class="m" x="88" y="814">managed ingress before Envoy</text>
+    </g>
+
+    <!-- Control services -->
+    <g class="node done" data-k="broker">
+      <rect x="355" y="190" width="205" height="110" rx="9"/>
+      <text class="k" x="374" y="215">done · FastAPI</text>
+      <text class="t" x="374" y="240">Service Broker</text>
+      <text class="m" x="374" y="262">/v2/catalog</text>
+      <text class="m" x="374" y="280">/service_instances/*</text>
+    </g>
+    <g class="node done" data-k="catalog">
+      <rect x="355" y="330" width="205" height="82" rx="9"/>
+      <text class="k" x="374" y="355">done</text>
+      <text class="t" x="374" y="378">Catalog + validation</text>
+      <text class="m" x="374" y="398">domains, upstream, tls</text>
+    </g>
+    <g class="node done" data-k="instancerepo">
+      <rect x="675" y="185" width="175" height="70" rx="9"/>
+      <text class="k" x="694" y="210">done</text>
+      <text class="t" x="694" y="233">Instance repo</text>
+      <text class="m" x="694" y="250">Postgres adapter</text>
+    </g>
+    <g class="node done" data-k="outboxpub">
+      <rect x="675" y="310" width="175" height="70" rx="9"/>
+      <text class="k" x="694" y="335">done</text>
+      <text class="t" x="694" y="358">Outbox publisher</text>
+      <text class="m" x="694" y="375">task row insert</text>
+    </g>
+    <g class="node done" data-k="worker">
+      <rect x="575" y="495" width="205" height="122" rx="9"/>
+      <text class="k" x="594" y="520">done · Python loop</text>
+      <text class="t" x="594" y="545">Provisioning Worker</text>
+      <text class="m" x="594" y="567">claim pending task</text>
+      <text class="m" x="594" y="585">run side effects</text>
+      <text class="m" x="594" y="603">complete/fail task</text>
+    </g>
+    <g class="node done" data-k="controlplane">
+      <rect x="355" y="690" width="205" height="130" rx="9"/>
+      <text class="k" x="374" y="715">done · FastAPI + gRPC</text>
+      <text class="t" x="374" y="740">Control Plane</text>
+      <text class="m" x="374" y="762">ops API · 8081</text>
+      <text class="m" x="374" y="780">ADS stream · 18000</text>
+      <text class="m" x="374" y="798">snapshot cache</text>
+    </g>
+    <g class="node done store" data-k="snapshot">
+      <rect x="675" y="692" width="175" height="88" rx="9"/>
+      <text class="k" x="694" y="717">done</text>
+      <text class="t" x="694" y="740">SnapshotBuilder</text>
+      <text class="m" x="694" y="762">LDS/RDS/CDS/EDS</text>
+    </g>
+    <g class="node todo" data-k="templates">
+      <rect x="675" y="798" width="175" height="78" rx="9"/>
+      <text class="k" x="694" y="823">not done</text>
+      <text class="t" x="694" y="846">Template render</text>
+      <text class="m" x="694" y="866">TODO uses object store</text>
+    </g>
+
+    <!-- Provider ports -->
+    <g class="node port" data-k="ports">
+      <rect x="948" y="205" width="170" height="94" rx="9"/>
+      <text class="k" x="966" y="230">done</text>
+      <text class="t" x="966" y="253">Shared ports</text>
+      <text class="m" x="966" y="275">InstanceStore</text>
+      <text class="m" x="966" y="292">TaskQueue</text>
+    </g>
+    <g class="node port" data-k="snapshotport">
+      <rect x="948" y="340" width="170" height="82" rx="9"/>
+      <text class="k" x="966" y="365">done</text>
+      <text class="t" x="966" y="388">Snapshot port</text>
+      <text class="m" x="966" y="408">ready instance source</text>
+    </g>
+    <g class="node port" data-k="providerlocal">
+      <rect x="948" y="455" width="170" height="92" rx="9"/>
+      <text class="k" x="966" y="480">done</text>
+      <text class="t" x="966" y="503">Local adapters</text>
+      <text class="m" x="966" y="525">Postgres + MinIO</text>
+    </g>
+    <g class="node done" data-k="dns">
+      <rect x="948" y="562" width="170" height="74" rx="9"/>
+      <text class="k" x="966" y="587">done</text>
+      <text class="t" x="966" y="610">JSON DNS</text>
+      <text class="m" x="966" y="628">local registry file</text>
+    </g>
+    <g class="node done" data-k="certs">
+      <rect x="948" y="650" width="170" height="74" rx="9"/>
+      <text class="k" x="966" y="675">done</text>
+      <text class="t" x="966" y="698">Cert + Secret files</text>
+      <text class="m" x="966" y="716">local artifact volume</text>
+    </g>
+    <g class="node todo" data-k="dynamicpolicy">
+      <rect x="948" y="742" width="170" height="96" rx="9"/>
+      <text class="k" x="966" y="767">not done</text>
+      <text class="t" x="966" y="790">Dynamic policy</text>
+      <text class="m" x="966" y="812">auth + limits from CP</text>
+      <text class="m" x="966" y="829">currently env/static</text>
+    </g>
+
+    <!-- Local data plane -->
+    <g class="node done store" data-k="postgres">
+      <rect x="1308" y="185" width="197" height="94" rx="9"/>
+      <text class="k" x="1326" y="210">done · local MVP</text>
+      <text class="t" x="1326" y="233">Postgres</text>
+      <text class="m" x="1326" y="255">service_instances</text>
+      <text class="m" x="1326" y="272">provisioning_tasks</text>
+    </g>
+    <g class="node done store" data-k="minio">
+      <rect x="1308" y="320" width="197" height="78" rx="9"/>
+      <text class="k" x="1326" y="345">done</text>
+      <text class="t" x="1326" y="368">MinIO ObjectStore</text>
+      <text class="m" x="1326" y="388">bucket initialized</text>
+    </g>
+    <g class="node edgebox done" data-k="envoy">
+      <rect x="1308" y="520" width="197" height="126" rx="9"/>
+      <text class="k" x="1326" y="545">done · Docker</text>
+      <text class="t" x="1326" y="570">Envoy</text>
+      <text class="m" x="1326" y="592">static bootstrap</text>
+      <text class="m" x="1326" y="610">ADS: CDS + LDS</text>
+      <text class="m" x="1326" y="628">auth + ratelimit filters</text>
+    </g>
+    <g class="node done" data-k="authsidecar">
+      <rect x="1308" y="682" width="197" height="92" rx="9"/>
+      <text class="k" x="1326" y="707">done · gRPC</text>
+      <text class="t" x="1326" y="730">Auth Sidecar</text>
+      <text class="m" x="1326" y="752">static bearer token</text>
+    </g>
+    <g class="node done" data-k="ratelimit">
+      <rect x="1308" y="790" width="197" height="92" rx="9"/>
+      <text class="k" x="1326" y="815">done · gRPC</text>
+      <text class="t" x="1326" y="838">Rate Limit Sidecar</text>
+      <text class="m" x="1326" y="860">in-memory token bucket</text>
+    </g>
+
+    <!-- Future provider adapters -->
+    <g class="node todo" data-k="cosmos">
+      <rect x="1588" y="180" width="150" height="50" rx="9"/>
+      <text class="t" x="1605" y="204">Cloud DB</text>
+      <text class="m" x="1605" y="222">Cosmos/RDS/etc.</text>
+    </g>
+    <g class="node todo" data-k="servicebus">
+      <rect x="1588" y="242" width="150" height="50" rx="9"/>
+      <text class="t" x="1605" y="266">Cloud Queue</text>
+      <text class="m" x="1605" y="284">SB/SQS/PubSub</text>
+    </g>
+    <g class="node todo" data-k="blob">
+      <rect x="1588" y="320" width="150" height="50" rx="9"/>
+      <text class="t" x="1605" y="344">Object Store</text>
+      <text class="m" x="1605" y="362">Blob/S3/GCS</text>
+    </g>
+    <g class="node todo" data-k="azuredns">
+      <rect x="1588" y="420" width="150" height="50" rx="9"/>
+      <text class="t" x="1605" y="444">DNS adapters</text>
+      <text class="m" x="1605" y="462">Azure/R53/CloudDNS</text>
+    </g>
+    <g class="node todo" data-k="keyvault">
+      <rect x="1588" y="482" width="150" height="50" rx="9"/>
+      <text class="t" x="1605" y="506">Secret stores</text>
+      <text class="m" x="1605" y="524">KV/SM/K8s</text>
+    </g>
+    <g class="node done" data-k="backend">
+      <rect x="1588" y="550" width="150" height="58" rx="9"/>
+      <text class="k" x="1605" y="573">external</text>
+      <text class="t" x="1605" y="594">Backend Services</text>
+    </g>
+    <g class="node todo" data-k="vmss">
+      <rect x="1588" y="625" width="150" height="76" rx="9"/>
+      <text class="k" x="1605" y="650">not done</text>
+      <text class="t" x="1605" y="673">Prod edge fleet</text>
+      <text class="m" x="1605" y="693">VMSS/K8s/ASG</text>
+    </g>
+    <g class="node todo" data-k="observability">
+      <rect x="1588" y="790" width="150" height="66" rx="9"/>
+      <text class="k" x="1605" y="815">not done</text>
+      <text class="t" x="1605" y="838">OTel / Monitor</text>
+    </g>
+  </svg>
+
+  <div class="card" id="flowcap">
+    <div class="name" id="flowName"></div>
+    <ol id="flowSteps"></ol>
+  </div>
+
+  <aside class="card" id="detail">
+    <h2 id="detailTitle">Fulcrum architecture map</h2>
+    <div class="meta" id="detailMeta">click a node or choose a flow</div>
+    <p id="detailBody">The implemented system is a local MVP for a self-service Envoy edge platform. Use the chips to animate lifecycle, runtime, provider, and not-done flows.</p>
+    <ul id="detailBullets">
+      <li>Solid green nodes and paths are implemented in this repository.</li>
+      <li>Purple nodes are shared provider ports that keep core services cloud-neutral.</li>
+      <li>Dashed orange nodes show documented production features that still need adapters or automation.</li>
+    </ul>
+  </aside>
+</div>
+
+<script>
+  const details = {
+    developer: ["Developer", "OSB client", "Calls the broker to provision, update, deprovision, and poll last operation state.", ["Implemented endpoints include catalog, provision, update, delete, and last_operation.", "Validation covers catalog IDs and required routing parameters."]],
+    broker: ["Service Broker", "broker/broker/api/instances.py", "FastAPI OSB-style lifecycle API. It validates requests, normalizes parameters, persists instance state, and enqueues a task in the same Postgres transaction.", ["Provision creates status=provisioning and last_operation=in_progress.", "Idempotent same provision returns 200; conflicting provision returns 409.", "Update and deprovision create new task rows."]],
+    catalog: ["Catalog + validation", "broker/broker/api/catalog.py", "The catalog is currently in-process and pairs with parameter validation in the broker route handlers.", ["Required: domains, upstream_host, upstream_port.", "Optional normalized fields: path_prefix, timeout_seconds, tls, node_group."]],
+    instancerepo: ["Instance repo", "broker/broker/repository.py", "Broker-facing adapter that maps ServiceInstance models to Postgres rows.", ["Reads existing instances for idempotency and conflicts.", "Writes lifecycle state and last_operation fields."]],
+    outboxpub: ["Outbox publisher", "broker/broker/repository.py", "The current task publisher is the provisioning_tasks table insert performed in the same transaction as the service instance write.", ["This replaces Service Bus for the local MVP.", "Worker later claims these rows through the task queue port."]],
+    worker: ["Provisioning Worker", "worker/worker/consumer.py", "Polls the local task outbox, claims one pending task with row locking, runs handler side effects, then marks both task and instance complete or failed.", ["ServiceBusConsumer is currently an alias for PostgresOutboxConsumer.", "There is no transient retry/backoff/dead-letter loop yet beyond status updates."]],
+    controlplane: ["Control Plane", "control-plane/control_plane", "FastAPI ops API plus Envoy ADS gRPC server. It builds versioned in-memory snapshots per node group and streams resources to Envoy.", ["Docker Compose currently seeds a memory instance for local Envoy smoke tests.", "Can use Postgres snapshot source when the memory override is disabled."]],
+    snapshot: ["SnapshotBuilder", "control-plane/control_plane/snapshot.py", "Builds Envoy resources directly from ready ServiceInstance records: listener, route configuration, strict-DNS clusters, endpoints, secrets, and runtime metadata.", ["HTTP manager includes ext_authz, ratelimit, and router filters.", "Route actions include per-service rate-limit descriptors."]],
+    templates: ["Template-backed rendering", "not done", "The object-store port and MinIO adapter exist, but SnapshotBuilder still has a TODO for fetching templates from the configured object store.", ["Current resource generation is handwritten protobuf construction.", "Jinja/object-store rendering is documented but not wired."]],
+    ports: ["Shared provider ports", "shared/fulcrum_shared/ports", "Cloud-neutral contracts for instance storage, task queue, snapshot source, DNS, certificates, secrets, and object storage.", ["Core services depend on ports, not Azure SDKs.", "Future cloud adapters should plug in here."]],
+    snapshotport: ["Snapshot source port", "SnapshotInstanceSource", "The control plane reads routable instances through a provider port so database choice does not leak into snapshot generation.", ["Local adapter: PostgresSnapshotInstanceSource.", "Development override: in-memory repository."]],
+    providerlocal: ["Local provider adapters", "providers/local", "Local implementations back the MVP: Postgres for state and tasks, MinIO for object storage, JSON DNS registry, filesystem certs, and filesystem secrets.", ["Used by Docker Compose through environment variables.", "The local DNS registry records intent; it does not serve real DNS."]],
+    dns: ["JSON DNS provider", "providers/local/json_dns_provider.py", "Worker side effects write CNAME records into a local JSON registry.", ["Provision/update upsert records.", "Deprovision deletes records for the instance domains."]],
+    certs: ["File certs + secrets", "providers/local/file_*", "TLS material is stored on the local provider volume when tls=true and certificate material is supplied in parameters.", ["Private keys are written through SecretStore.", "Certificate delete is not part of the shared port yet; deprovision leaves certificate files as history."]],
+    dynamicpolicy: ["Dynamic sidecar policy", "not done", "Docs describe auth and rate-limit policy coming from the control plane, but current sidecars are static/env-backed.", ["Auth uses one configured bearer token.", "Rate limits use environment defaults or descriptor overrides.", "No policy distribution channel from CP to sidecars yet."]],
+    postgres: ["Postgres", "db/postgres/init/001_schema.sql", "Local durable state for the MVP. Holds service_instances and provisioning_tasks with indexes for broker lookup, worker claiming, and ready-instance snapshot reads.", ["Worker claim uses FOR UPDATE SKIP LOCKED.", "Task statuses are pending, processing, succeeded, failed."]],
+    minio: ["MinIO ObjectStore", "providers/local/object_store.py", "Local object-store adapter and Compose bucket. It is ready for templates/artifacts, but current control-plane snapshots do not read templates yet.", ["docker-compose initializes fulcrum-artifacts.", "Provider tests cover put/get/delete behavior."]],
+    envoy: ["Envoy", "envoy/envoy.yaml", "Local Docker data plane. Static bootstrap points to control-plane ADS, auth sidecar, and rate-limit sidecar clusters.", ["Dynamic resources configured through ADS for CDS and LDS.", "Local ingress is port 10080, admin is 9901.", "Production mTLS/bootstrap rendering is documented but not implemented."]],
+    authsidecar: ["Auth Sidecar", "auth-sidecar/auth_sidecar/handler.py", "Envoy external authorization gRPC server. Parses CheckRequest headers and allows only the configured bearer token.", ["Default token is dev-token.", "Allowed responses inject Fulcrum identity headers.", "Denied responses return 401 JSON bodies."]],
+    ratelimit: ["Rate Limit Sidecar", "rate-limit-sidecar/rate_limit_sidecar/service.py", "Envoy RLS gRPC server backed by thread-safe in-memory token buckets.", ["Keys are built from Envoy descriptor entries.", "Supports descriptor limit overrides and hits_addend.", "This is per-sidecar local limiting, not global distributed limiting."]],
+    customer: ["Customer", "runtime caller", "Sends HTTP traffic to Envoy. Locally this is a direct Docker-published port; production ingress is still planned.", ["Request must pass auth and rate-limit filters before routing upstream."]],
+    internet: ["Internet path", "planned production", "Docs describe Azure Front Door, L4 load balancer, NSG, and VMSS as one target shape, but the provider boundary also leaves room for other ingress/fleet models.", ["No production ingress, fleet bootstrap, or rollout manifests are present in the repo."]],
+    cosmos: ["Cloud DB adapter", "planned provider", "The provider boundary can support Cosmos DB, RDS/Postgres, Cloud SQL, DynamoDB-style stores, or another durable implementation behind InstanceStore and SnapshotInstanceSource.", ["Current local adapter is Postgres.", "The original docs use Cosmos DB as one production example."]],
+    servicebus: ["Cloud queue adapter", "planned provider", "The task queue port can be backed by Service Bus, SQS, Pub/Sub, a Kubernetes queueing pattern, or another durable queue.", ["Current local adapter is the Postgres outbox.", "No cloud queue adapter is wired yet."]],
+    blob: ["Object store adapter", "planned provider", "ObjectStore can be backed by Azure Blob, S3, GCS, MinIO, or filesystem-like storage.", ["Current local adapter is MinIO.", "Template consumption remains unwired."]],
+    azuredns: ["DNS adapters", "planned providers", "DnsProvider should support provider-specific DNS APIs without changing worker core logic.", ["Examples: Azure DNS, Route 53, Cloud DNS, Kubernetes DNS/operator-backed records.", "Current local adapter is a JSON registry file."]],
+    keyvault: ["Secret store adapters", "planned providers", "CertificateProvider and SecretStore can target Key Vault, AWS Secrets Manager/ACM, GCP Secret Manager/Certificate Manager, Kubernetes Secrets, or files.", ["Current local adapter is filesystem-backed.", "Certificate deletion is not part of the shared port yet."]],
+    backend: ["Backend Services", "external upstream", "Envoy routes accepted requests to the upstream_host and upstream_port declared on each ServiceInstance.", ["SnapshotBuilder creates strict-DNS clusters and endpoint assignments for these upstreams."]],
+    vmss: ["Production edge fleet", "planned data plane", "The production data plane could be Azure Front Door/LB/VMSS as documented, or a Kubernetes/ASG-style Envoy fleet behind another ingress layer.", ["Local Compose runs one Envoy container instead.", "Image build, node bootstrap, mTLS, and rollout automation are not implemented."]],
+    observability: ["Observability", "planned", "Docs mention Azure Monitor and OpenTelemetry collector on Envoy images, but there is no implementation in this repo yet.", ["No collector config, trace export, or monitor pipeline is present."]]
+  };
+
+  const flows = {
+    all: {
+      name: "Everything",
+      nodes: [],
+      edges: [],
+      steps: ["Full architecture view with implemented, provider-boundary, and planned pieces visible."]
+    },
+    provision: {
+      name: "Provision lifecycle",
+      nodes: ["developer", "broker", "catalog", "instancerepo", "outboxpub", "ports", "postgres", "worker", "providerlocal", "dns", "certs", "controlplane", "snapshot", "envoy"],
+      edges: ["e-dev-broker", "e-broker-repo", "e-broker-task", "e-repo-pg", "e-task-pg", "e-worker-claim", "e-worker-dns", "e-worker-cert", "e-worker-complete", "e-cp-source", "e-cp-cache", "e-envoy-ads"],
+      labels: ["e-dev-broker", "e-broker-task", "e-worker-claim", "e-worker-dns", "e-cp-source", "e-envoy-ads"],
+      steps: ["Developer sends PUT/PATCH/DELETE to the broker.", "Broker validates catalog IDs and routing parameters.", "Broker writes service_instances and provisioning_tasks in one transaction.", "Worker claims a pending task from Postgres with row locking.", "Worker applies DNS/cert/secret side effects through local providers.", "Worker marks the instance ready/deleted or failed.", "Control plane reads ready instances and Envoy receives updated xDS."]
+    },
+    worker: {
+      name: "Worker side effects",
+      nodes: ["worker", "postgres", "providerlocal", "dns", "certs"],
+      edges: ["e-worker-claim", "e-worker-dns", "e-worker-cert", "e-worker-complete"],
+      labels: ["e-worker-claim", "e-worker-dns", "e-worker-cert"],
+      steps: ["PostgresTaskRepository claims one pending task.", "Provision/update validate payload and upsert CNAME records.", "If tls=true, certificate and private key material must be present.", "Deprovision deletes DNS records and private-key secrets.", "Completion updates both service instance last_operation and task status."]
+    },
+    snapshot: {
+      name: "Snapshot + xDS",
+      nodes: ["postgres", "snapshotport", "controlplane", "snapshot", "templates", "minio", "envoy"],
+      edges: ["e-cp-source", "e-cp-cache", "e-envoy-ads", "e-template-gap"],
+      labels: ["e-cp-source", "e-envoy-ads", "e-template-gap"],
+      steps: ["Control plane source lists ready instances by node group.", "SnapshotBuilder converts instances into Envoy protobuf resources.", "SnapshotCache stores the current and previous version.", "Envoy opens ADS and requests dynamic resources.", "Template-backed rendering is planned but not wired."]
+    },
+    traffic: {
+      name: "Customer traffic",
+      nodes: ["customer", "envoy", "authsidecar", "ratelimit", "backend", "internet", "vmss"],
+      edges: ["e-customer-envoy", "e-envoy-auth", "e-envoy-rl", "e-envoy-upstream", "e-frontdoor", "e-vmss"],
+      labels: ["e-customer-envoy", "e-envoy-auth", "e-envoy-rl", "e-frontdoor"],
+      steps: ["Local customer request enters Envoy on port 10080.", "Envoy runs external authorization before routing.", "Envoy asks the rate-limit sidecar using service_id descriptors.", "If allowed, Envoy routes to the configured strict-DNS upstream.", "Production ingress and edge fleet automation remain planned."]
+    },
+    auth: {
+      name: "Auth filter",
+      nodes: ["controlplane", "envoy", "authsidecar", "dynamicpolicy"],
+      edges: ["e-envoy-auth", "e-auth-decision", "e-sidecar-policy"],
+      labels: ["e-envoy-auth"],
+      steps: ["Envoy sends CheckRequest over gRPC.", "Auth sidecar extracts Authorization: Bearer token.", "Static authorizer compares with FULCRUM_AUTH_BEARER_TOKEN.", "Allowed responses inject Fulcrum identity headers.", "Dynamic policy from control plane is not implemented yet."]
+    },
+    ratelimit: {
+      name: "Rate-limit filter",
+      nodes: ["controlplane", "envoy", "ratelimit", "dynamicpolicy"],
+      edges: ["e-envoy-rl", "e-rl-decision", "e-limit-policy"],
+      labels: ["e-envoy-rl"],
+      steps: ["Envoy sends descriptor entries to RLS.", "Sidecar builds deterministic bucket keys.", "Token bucket consumes hits_addend and returns OK or OVER_LIMIT.", "Default limit comes from environment unless descriptor overrides it.", "Distributed/global limits and dynamic policy are not done."]
+    },
+    provider: {
+      name: "Provider boundary",
+      nodes: ["broker", "instancerepo", "outboxpub", "worker", "controlplane", "ports", "snapshotport", "providerlocal", "postgres", "minio", "dns", "certs", "cosmos", "servicebus", "blob", "azuredns", "keyvault"],
+      edges: ["e-ports-broker", "e-ports-worker", "e-ports-cp", "e-repo-pg", "e-task-pg", "e-cloud-db", "e-cloud-queue", "e-cloud-storage", "e-cloud-dns", "e-cloud-cert"],
+      labels: ["e-ports-broker", "e-ports-worker", "e-ports-cp"],
+      steps: ["Broker, worker, and control plane depend on shared ports.", "Local adapters satisfy those ports for Docker development.", "Cloud or platform providers should be added as adapters behind the same contracts.", "Azure is documented as one target, not the only possible provider."]
+    },
+    roadmap: {
+      name: "Not-done feature map",
+      nodes: ["templates", "dynamicpolicy", "cosmos", "servicebus", "blob", "azuredns", "keyvault", "vmss", "observability", "internet"],
+      edges: ["e-template-gap", "e-cloud-db", "e-cloud-queue", "e-cloud-storage", "e-cloud-dns", "e-cloud-cert", "e-frontdoor", "e-vmss", "e-sidecar-policy", "e-limit-policy", "e-observe"],
+      labels: ["e-template-gap", "e-frontdoor"],
+      steps: ["Template-backed xDS rendering from object storage.", "Dynamic auth and rate-limit policy distribution.", "Provider adapters for cloud DB, queue, object storage, DNS, certs, and secrets.", "Production edge fleet build, bootstrap, mTLS, and rollout automation.", "Observability pipeline with OTel and provider-native monitoring."]
+    }
+  };
+
+  const stage = document.getElementById("stage");
+  const flowName = document.getElementById("flowName");
+  const flowSteps = document.getElementById("flowSteps");
+  const flowcap = document.getElementById("flowcap");
+  const detailTitle = document.getElementById("detailTitle");
+  const detailMeta = document.getElementById("detailMeta");
+  const detailBody = document.getElementById("detailBody");
+  const detailBullets = document.getElementById("detailBullets");
+
+  function clearLit() {
+    document.querySelectorAll(".lit, .sel").forEach((el) => el.classList.remove("lit", "sel"));
+    stage.classList.remove("flowing");
+  }
+
+  function showDetails(key) {
+    const item = details[key];
+    if (!item) return;
+    detailTitle.textContent = item[0];
+    detailMeta.textContent = item[1];
+    detailBody.textContent = item[2];
+    detailBullets.innerHTML = "";
+    item[3].forEach((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      detailBullets.appendChild(li);
+    });
+    document.querySelectorAll(".node").forEach((node) => node.classList.toggle("sel", node.dataset.k === key));
+  }
+
+  function setFlow(key) {
+    document.querySelectorAll(".chip").forEach((chip) => chip.classList.toggle("on", chip.dataset.flow === key));
+    clearLit();
+    const flow = flows[key];
+    flowName.textContent = flow.name;
+    flowSteps.innerHTML = "";
+    flow.steps.forEach((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      flowSteps.appendChild(li);
+    });
+    flowcap.classList.toggle("show", key !== "all");
+
+    if (key === "all") return;
+    stage.classList.add("flowing");
+    flow.nodes.forEach((nodeKey) => {
+      const node = document.querySelector(`.node[data-k="${nodeKey}"]`);
+      if (node) node.classList.add("lit");
+    });
+    flow.edges.forEach((edgeId) => {
+      const edge = document.getElementById(edgeId);
+      if (edge) edge.classList.add("lit");
+    });
+    (flow.labels || []).forEach((edgeId) => {
+      document.querySelectorAll(`.elbl[data-e="${edgeId}"]`).forEach((label) => label.classList.add("lit"));
+    });
+  }
+
+  document.getElementById("chips").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-flow]");
+    if (!button) return;
+    setFlow(button.dataset.flow);
+  });
+
+  document.querySelectorAll(".node").forEach((node) => {
+    node.addEventListener("click", () => showDetails(node.dataset.k));
+  });
+
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const root = document.documentElement;
+    const dark = !root.classList.contains("dark");
+    root.classList.toggle("dark", dark);
+    localStorage.setItem("fulcrum-diagram-theme", dark ? "dark" : "light");
+  });
+</script>
+</body>
+</html>
